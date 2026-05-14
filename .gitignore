@@ -1,0 +1,21 @@
+# Caché y tokens AFIP
+wsaa_cache.json
+
+# Archivos subidos y resultados
+uploads/
+
+# Certificados (guardarlos fuera del repo)
+*.crt
+*.key
+*.csr
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Editor
+.vscode/
+*.swp
