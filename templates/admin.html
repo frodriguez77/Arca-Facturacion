@@ -128,17 +128,54 @@
     </div>
   </div>
 
-  <!-- Instrucciones -->
+  <!-- Generador de CSR -->
   <div class="card mt-4">
     <div class="card-body p-4">
-      <h6><i class="bi bi-info-circle text-primary"></i> ¿Cómo obtener el certificado?</h6>
-      <ol class="mb-0 small text-muted">
-        <li>Ingresá a ARCA con clave fiscal del titular del CUIT.</li>
-        <li>Ir a <em>Administración de Certificados Digitales</em>.</li>
-        <li>Generá un CSR con OpenSSL y solicitá el certificado.</li>
-        <li>Descargá el <code>.crt</code> y guardá la <code>.key</code> en una carpeta segura.</li>
-        <li>Completá las rutas en este formulario.</li>
-      </ol>
+      <h5 class="mb-1"><i class="bi bi-shield-lock text-success"></i> Generar clave y CSR para AFIP</h5>
+      <p class="text-muted small mb-4">
+        Completá los datos y el sistema generará la clave privada (.key) y la solicitud de certificado (.csr)
+        listas para presentar en AFIP. Vas a descargar un ZIP con ambos archivos.
+      </p>
+
+      <div id="csr-error" class="alert alert-danger d-none"></div>
+
+      <form id="form-csr" novalidate>
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">CUIT <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="csr-cuit"
+                   placeholder="20123456789" maxlength="11" required>
+            <div class="form-text">11 dígitos, sin guiones.</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">Nombre / Razón social <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="csr-nombre"
+                   placeholder="Mi Empresa SRL" required>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">Email <span class="text-muted fw-normal">(opcional)</span></label>
+            <input type="email" class="form-control" id="csr-email"
+                   placeholder="admin@miempresa.com">
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-success mt-4" id="btn-csr">
+          <i class="bi bi-key-fill"></i> Generar y descargar ZIP
+        </button>
+      </form>
+
+      <!-- Pasos siguientes -->
+      <div class="alert alert-info mt-4 mb-0">
+        <strong>Pasos después de descargar:</strong>
+        <ol class="mb-0 mt-2 small">
+          <li>Guardá el archivo <code>.key</code> en un lugar seguro (es tu clave privada, no la pierdas).</li>
+          <li>Ingresá a <strong>ARCA</strong> con clave fiscal del titular del CUIT.</li>
+          <li>Ir a <em>Administración de Certificados Digitales</em> → <em>Agregar alias</em>.</li>
+          <li>Subí el archivo <code>.csr</code> y completá el proceso.</li>
+          <li>Descargá el <code>.crt</code> que te entrega AFIP.</li>
+          <li>Volvé aquí y agregá la empresa con las rutas del <code>.crt</code> y el <code>.key</code>.</li>
+        </ol>
+      </div>
     </div>
   </div>
 
@@ -240,6 +277,53 @@ function showOk(msg) {
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// --- generador de CSR -------------------------------------------------------
+document.getElementById('form-csr').addEventListener('submit', async e => {
+  e.preventDefault();
+  document.getElementById('csr-error').classList.add('d-none');
+
+  const body = {
+    cuit:   document.getElementById('csr-cuit').value.trim(),
+    nombre: document.getElementById('csr-nombre').value.trim(),
+    email:  document.getElementById('csr-email').value.trim(),
+  };
+
+  const btn = document.getElementById('btn-csr');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generando...';
+
+  try {
+    const resp = await fetch('/generar-csr', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify(body),
+    });
+
+    if (resp.ok) {
+      // Descargar el ZIP directamente
+      const blob = await resp.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `certificado_afip_${body.cuit}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const data = await resp.json();
+      const el = document.getElementById('csr-error');
+      el.textContent = data.error || 'Error desconocido';
+      el.classList.remove('d-none');
+    }
+  } catch (err) {
+    const el = document.getElementById('csr-error');
+    el.textContent = 'Error de red: ' + err;
+    el.classList.remove('d-none');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-key-fill"></i> Generar y descargar ZIP';
+  }
+});
 </script>
 </body>
 </html>

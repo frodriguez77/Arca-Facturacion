@@ -2,7 +2,9 @@ import io
 import json
 import os
 import re
+import subprocess
 import uuid
+import zipfile
 from datetime import datetime
 
 from flask import Flask, jsonify, render_template, request, send_file
@@ -17,8 +19,10 @@ import wsfe
 app = Flask(__name__)
 app.secret_key = 'arca_2026'
 
-UPLOAD   = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
-EMPRESAS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'empresas.json')
+BASE     = os.path.dirname(os.path.abspath(__file__))
+UPLOAD   = os.path.join(BASE, 'uploads')
+CERTS    = os.path.join(BASE, 'certificados')
+EMPRESAS = os.path.join(BASE, 'empresas.json')
 COLUMNAS = [
     'punto_venta', 'tipo_cbte', 'concepto',
     'doc_tipo', 'doc_nro', 'razon_social',
@@ -26,6 +30,7 @@ COLUMNAS = [
 ]
 
 os.makedirs(UPLOAD, exist_ok=True)
+os.makedirs(CERTS,  exist_ok=True)
 
 
 # ---------- helpers ----------------------------------------------------------
@@ -309,6 +314,69 @@ def plantilla():
     out.seek(0)
     return send_file(out, as_attachment=True, download_name='plantilla_facturas.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+# ---------- generador de CSR -------------------------------------------------
+
+@app.route('/generar-csr', methods=['POST'])
+def generar_csr():
+    data   = request.get_json(force=True)
+    cuit   = (data.get('cuit')   or '').strip()
+    nombre = (data.get('nombre') or '').strip()
+    email  = (data.get('email')  or '').strip()
+
+    if not cuit or not nombre:
+        return jsonify({'error': 'CUIT y nombre son obligatorios'}), 400
+    if not re.fullmatch(r'\d{11}', cuit):
+        return jsonify({'error': 'El CUIT debe tener 11 dígitos sin guiones'}), 400
+
+    key_path = os.path.join(CERTS, f'{cuit}_clave.key')
+    csr_path = os.path.join(CERTS, f'{cuit}.csr')
+
+    openssl = r"C:\Program Files\OpenSSL-Win64\bin\openssl.exe"
+    if not os.path.exists(openssl):
+        return jsonify({'error': 'OpenSSL no encontrado en ' + openssl}), 500
+
+    try:
+        # 1. Generar clave privada RSA 2048
+        r1 = subprocess.run(
+            [openssl, 'genrsa', '-out', key_path, '2048'],
+            capture_output=True
+        )
+        if r1.returncode != 0:
+            raise Exception(r1.stderr.decode('utf-8', errors='replace'))
+
+        # 2. Generar CSR con los datos requeridos por AFIP
+        subject = f'/C=AR/O={nombre}/serialNumber=CUIT {cuit}/CN={cuit}'
+        if email:
+            subject += f'/emailAddress={email}'
+
+        r2 = subprocess.run(
+            [openssl, 'req', '-new',
+             '-key',     key_path,
+             '-out',     csr_path,
+             '-subj',    subject],
+            capture_output=True
+        )
+        if r2.returncode != 0:
+            raise Exception(r2.stderr.decode('utf-8', errors='replace'))
+
+        # 3. Empaquetar .key y .csr en un ZIP para descargar
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            zf.write(key_path, f'{cuit}_clave.key')
+            zf.write(csr_path, f'{cuit}.csr')
+        buf.seek(0)
+
+        return send_file(
+            buf,
+            as_attachment=True,
+            download_name=f'certificado_afip_{cuit}.zip',
+            mimetype='application/zip',
+        )
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 # ---------- página de administración -----------------------------------------
