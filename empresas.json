@@ -1,0 +1,10 @@
+[
+  {
+    "id": "prg",
+    "nombre": "PRG - Empresa Principal",
+    "cuit": "20267894362",
+    "cert": "C:\\ARCA_Certificados\\PRGFacturas_e4730afb1cab1ae.crt",
+    "key": "C:\\ARCA_Certificados\\mi_clave.key",
+    "homologacion": false
+  }
+]

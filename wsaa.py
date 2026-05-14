@@ -1,5 +1,6 @@
 import base64
 import datetime
+import json
 import os
 import subprocess
 import tempfile
@@ -16,7 +17,6 @@ OPENSSL = r"C:\Program Files\OpenSSL-Win64\bin\openssl.exe"
 
 
 def _load_cache():
-    import json
     if os.path.exists(_CACHE_FILE):
         try:
             with open(_CACHE_FILE, 'r') as f:
@@ -28,7 +28,6 @@ def _load_cache():
             pass
 
 def _save_cache():
-    import json
     data = {k: {**v, 'expiry': v['expiry'].isoformat()} for k, v in _cache.items()}
     with open(_CACHE_FILE, 'w') as f:
         json.dump(data, f)
@@ -90,14 +89,15 @@ def _sign_tra(tra_bytes, cert_path, key_path):
             os.unlink(tra_file)
 
 
-def get_ticket(service, cert_path, key_path, wsaa_url):
-    cached = _cache.get(service)
+def get_ticket(service, cert_path, key_path, wsaa_url, cuit):
+    # Cache key includes CUIT so each empresa has its own token
+    cache_key = f"{cuit}_{service}"
+    cached = _cache.get(cache_key)
     if cached and datetime.datetime.now() < cached['expiry']:
         return cached['token'], cached['sign']
 
     tra     = _generate_tra(service)
     cms_b64 = _sign_tra(tra, cert_path, key_path)
-
 
     soap = (
         '<?xml version="1.0" encoding="UTF-8"?>'
@@ -123,7 +123,6 @@ def get_ticket(service, cert_path, key_path, wsaa_url):
 
     if not resp.ok:
         if 'alreadyAuthenticated' in resp.text:
-            # El ticket anterior sigue vigente — forzar nueva solicitud en 5 minutos
             raise Exception("AFIP: ya existe un ticket válido. Esperá unos minutos y reintentá.")
         raise Exception(f"WSAA HTTP {resp.status_code}: {resp.text[:800]}")
 
@@ -138,7 +137,7 @@ def get_ticket(service, cert_path, key_path, wsaa_url):
     expiry_str = _find_tag(ta, 'expirationTime').text
 
     expiry_dt = datetime.datetime.fromisoformat(expiry_str[:19]) - datetime.timedelta(minutes=10)
-    _cache[service] = {'token': token, 'sign': sign, 'expiry': expiry_dt}
+    _cache[cache_key] = {'token': token, 'sign': sign, 'expiry': expiry_dt}
     _save_cache()
 
     return token, sign

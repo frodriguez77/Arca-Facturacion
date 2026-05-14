@@ -1,5 +1,8 @@
 import io
+import json
 import os
+import re
+import uuid
 from datetime import datetime
 
 from flask import Flask, jsonify, render_template, request, send_file
@@ -14,28 +17,123 @@ import wsfe
 app = Flask(__name__)
 app.secret_key = 'arca_2026'
 
-UPLOAD  = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+UPLOAD   = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+EMPRESAS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'empresas.json')
 COLUMNAS = [
     'punto_venta', 'tipo_cbte', 'concepto',
     'doc_tipo', 'doc_nro', 'razon_social',
     'fecha', 'imp_neto', 'alicuota', 'imp_iva', 'imp_total',
 ]
 
+os.makedirs(UPLOAD, exist_ok=True)
+
+
+# ---------- helpers ----------------------------------------------------------
+
+def _load_empresas():
+    if not os.path.exists(EMPRESAS):
+        return []
+    with open(EMPRESAS, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def _save_empresas(data):
+    with open(EMPRESAS, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def _get_empresa(empresa_id):
+    for e in _load_empresas():
+        if e['id'] == empresa_id:
+            return e
+    return None
+
+def _upload_path(empresa_id):
+    return os.path.join(UPLOAD, f'facturas_{empresa_id}.xlsx')
+
+def _resultado_path(empresa_id):
+    return os.path.join(UPLOAD, f'facturas_{empresa_id}_resultado.xlsx')
+
+def _empresa_urls(empresa):
+    if empresa.get('homologacion'):
+        return config.WSAA_URL_HOMO, config.WSFE_WSDL_HOMO
+    return config.WSAA_URL_PROD, config.WSFE_WSDL_PROD
+
+
+# ---------- vistas principales -----------------------------------------------
 
 @app.route('/')
 def index():
-    return render_template('index.html', cuit=config.CUIT, homo=config.HOMOLOGACION)
+    empresas = _load_empresas()
+    return render_template('index.html', empresas=empresas)
 
+
+# ---------- API empresas ------------------------------------------------------
+
+@app.route('/api/empresas')
+def api_empresas():
+    return jsonify(_load_empresas())
+
+@app.route('/api/empresas', methods=['POST'])
+def api_empresa_add():
+    data = request.get_json(force=True)
+    nombre = (data.get('nombre') or '').strip()
+    cuit   = (data.get('cuit')   or '').strip()
+    cert   = (data.get('cert')   or '').strip()
+    key    = (data.get('key')    or '').strip()
+    homo   = bool(data.get('homologacion', False))
+
+    if not nombre or not cuit or not cert or not key:
+        return jsonify({'error': 'Nombre, CUIT, certificado y clave son obligatorios'}), 400
+    if not re.fullmatch(r'\d{11}', cuit):
+        return jsonify({'error': 'El CUIT debe tener 11 dígitos sin guiones'}), 400
+
+    empresas = _load_empresas()
+    if any(e['cuit'] == cuit for e in empresas):
+        return jsonify({'error': f'Ya existe una empresa con CUIT {cuit}'}), 400
+
+    empresa_id = re.sub(r'[^a-z0-9]', '', nombre.lower())[:20] or str(uuid.uuid4())[:8]
+    if any(e['id'] == empresa_id for e in empresas):
+        empresa_id = empresa_id + '_' + str(uuid.uuid4())[:4]
+
+    empresas.append({
+        'id': empresa_id,
+        'nombre': nombre,
+        'cuit': cuit,
+        'cert': cert,
+        'key': key,
+        'homologacion': homo,
+    })
+    _save_empresas(empresas)
+    return jsonify({'ok': True, 'id': empresa_id})
+
+@app.route('/api/empresas/<empresa_id>', methods=['DELETE'])
+def api_empresa_delete(empresa_id):
+    empresas = _load_empresas()
+    nuevas = [e for e in empresas if e['id'] != empresa_id]
+    if len(nuevas) == len(empresas):
+        return jsonify({'error': 'Empresa no encontrada'}), 404
+    _save_empresas(nuevas)
+    for path in [_upload_path(empresa_id), _resultado_path(empresa_id)]:
+        if os.path.exists(path):
+            os.remove(path)
+    return jsonify({'ok': True})
+
+
+# ---------- flujo de facturación ----------------------------------------------
 
 @app.route('/upload', methods=['POST'])
 def upload():
+    empresa_id = request.form.get('empresa_id', '').strip()
+    empresa = _get_empresa(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Seleccioná una empresa antes de cargar el archivo'}), 400
+
     f = request.files.get('file')
     if not f:
         return jsonify({'error': 'No se seleccionó archivo'}), 400
     if not f.filename.endswith(('.xlsx', '.xls')):
         return jsonify({'error': 'El archivo debe ser .xlsx'}), 400
 
-    path = os.path.join(UPLOAD, 'facturas.xlsx')
+    path = _upload_path(empresa_id)
     f.save(path)
 
     try:
@@ -62,14 +160,24 @@ def upload():
 
 @app.route('/procesar', methods=['POST'])
 def procesar():
-    path = os.path.join(UPLOAD, 'facturas.xlsx')
+    data       = request.get_json(force=True)
+    empresa_id = (data.get('empresa_id') or '').strip()
+    empresa    = _get_empresa(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 400
+
+    path = _upload_path(empresa_id)
     if not os.path.exists(path):
-        return jsonify({'error': 'No hay archivo cargado'}), 400
+        return jsonify({'error': 'No hay archivo cargado para esta empresa'}), 400
+
+    wsaa_url, wsfe_wsdl = _empresa_urls(empresa)
 
     try:
-        token, sign = wsaa.get_ticket('wsfe', config.CERT, config.KEY, config.WSAA_URL)
-        auth        = {'Token': token, 'Sign': sign, 'Cuit': int(config.CUIT)}
-        client      = wsfe.get_client(config.WSFE_WSDL)
+        token, sign = wsaa.get_ticket(
+            'wsfe', empresa['cert'], empresa['key'], wsaa_url, empresa['cuit']
+        )
+        auth   = {'Token': token, 'Sign': sign, 'Cuit': int(empresa['cuit'])}
+        client = wsfe.get_client(wsfe_wsdl)
 
         df = pd.read_excel(path)
         df.columns = [c.lower().strip().replace(' ', '_') for c in df.columns]
@@ -96,8 +204,10 @@ def procesar():
                     fecha_str = datetime.strptime(str(fecha_raw)[:10], '%Y-%m-%d').strftime('%Y%m%d')
                 comp['fecha'] = fecha_str
 
-                result = wsfe.procesar_comprobante(client, auth, config.CUIT, pv, tipo, comp, nro)
-                det    = result.FeDetResp.FECAEDetResponse[0]
+                result = wsfe.procesar_comprobante(
+                    client, auth, empresa['cuit'], pv, tipo, comp, nro
+                )
+                det = result.FeDetResp.FECAEDetResponse[0]
 
                 if det.Resultado == 'A':
                     resultados.append({
@@ -122,7 +232,7 @@ def procesar():
                     'cae': '', 'vto_cae': '', 'obs': str(e),
                 })
 
-        _guardar_resultado(path, resultados)
+        _guardar_resultado(path, _resultado_path(empresa_id), resultados)
 
         aprobados = sum(1 for r in resultados if r['resultado'] == 'APROBADO')
         return jsonify({
@@ -139,7 +249,7 @@ def procesar():
         return jsonify({'error': str(e)}), 500
 
 
-def _guardar_resultado(src_path, resultados):
+def _guardar_resultado(src_path, dest_path, resultados):
     wb = load_workbook(src_path)
     ws = wb.active
     lc = ws.max_column + 1
@@ -147,8 +257,8 @@ def _guardar_resultado(src_path, resultados):
     for i, h in enumerate(['Nro_Cbte', 'Resultado', 'CAE', 'Vto_CAE', 'Observaciones']):
         ws.cell(1, lc + i, h)
 
-    verde   = PatternFill(fill_type='solid', fgColor='C6EFCE')
-    rojo    = PatternFill(fill_type='solid', fgColor='FFC7CE')
+    verde    = PatternFill(fill_type='solid', fgColor='C6EFCE')
+    rojo     = PatternFill(fill_type='solid', fgColor='FFC7CE')
     amarillo = PatternFill(fill_type='solid', fgColor='FFEB9C')
 
     for r in resultados:
@@ -162,29 +272,34 @@ def _guardar_resultado(src_path, resultados):
         for col in range(1, lc + 5):
             ws.cell(rn, col).fill = fill
 
-    wb.save(os.path.join(UPLOAD, 'facturas_resultado.xlsx'))
+    wb.save(dest_path)
 
 
 @app.route('/descargar')
 def descargar():
-    path = os.path.join(UPLOAD, 'facturas_resultado.xlsx')
+    empresa_id = request.args.get('empresa_id', '').strip()
+    empresa    = _get_empresa(empresa_id)
+    if not empresa:
+        return 'Empresa no encontrada', 404
+    path = _resultado_path(empresa_id)
     if not os.path.exists(path):
         return 'No hay resultado disponible', 404
-    return send_file(path, as_attachment=True, download_name='facturas_resultado.xlsx')
+    nombre_archivo = f'facturas_{empresa["cuit"]}_resultado.xlsx'
+    return send_file(path, as_attachment=True, download_name=nombre_archivo)
 
 
 @app.route('/plantilla')
 def plantilla():
     df = pd.DataFrame([{
         'punto_venta': 6,
-        'tipo_cbte':   11,       # Factura C - Monotributista
-        'concepto':    2,        # Servicios
-        'doc_tipo':    99,       # Consumidor Final
+        'tipo_cbte':   11,
+        'concepto':    2,
+        'doc_tipo':    99,
         'doc_nro':     0,
         'razon_social': 'Consumidor Final',
         'fecha':       datetime.today().strftime('%Y-%m-%d'),
-        'imp_neto':    1000.00,  # En FC imp_neto = imp_total
-        'alicuota':    0,        # Sin IVA
+        'imp_neto':    1000.00,
+        'alicuota':    0,
         'imp_iva':     0.00,
         'imp_total':   1000.00,
     }])
@@ -194,6 +309,14 @@ def plantilla():
     out.seek(0)
     return send_file(out, as_attachment=True, download_name='plantilla_facturas.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+# ---------- página de administración -----------------------------------------
+
+@app.route('/admin')
+def admin():
+    empresas = _load_empresas()
+    return render_template('admin.html', empresas=empresas)
 
 
 if __name__ == '__main__':

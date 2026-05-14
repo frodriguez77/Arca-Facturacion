@@ -11,7 +11,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 ALICUOTA_ID = {0: 3, 10.5: 4, 21: 5, 27: 6}
 TIPO_FC     = [11, 12, 13]   # Factura/Nota C (monotributistas, sin IVA)
 
-_client = None
+_clients = {}
 
 
 class _LegacyTLSAdapter(HTTPAdapter):
@@ -26,14 +26,13 @@ class _LegacyTLSAdapter(HTTPAdapter):
 
 
 def get_client(wsdl):
-    global _client
-    if _client is None:
+    if wsdl not in _clients:
         session = requests.Session()
         session.verify = False
         session.mount('https://', _LegacyTLSAdapter())
         transport = Transport(session=session, timeout=30)
-        _client   = Client(wsdl, transport=transport)
-    return _client
+        _clients[wsdl] = Client(wsdl, transport=transport)
+    return _clients[wsdl]
 
 
 def get_ultimo_comprobante(client, auth, punto_venta, tipo_cbte):

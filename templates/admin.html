@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARCA - Administrar Empresas</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body { background:#f1f5f9; }
+    .header { background: linear-gradient(135deg,#1d4ed8,#0d9488); color:#fff; }
+    .card  { border:none; box-shadow:0 2px 10px rgba(0,0,0,.08); border-radius:12px; }
+  </style>
+</head>
+<body>
+
+<div class="header py-3 mb-4 shadow-sm">
+  <div class="container d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <h4 class="mb-0"><i class="bi bi-gear"></i> Gestión de Empresas</h4>
+    <a href="/" class="btn btn-light btn-sm">
+      <i class="bi bi-arrow-left"></i> Volver a facturación
+    </a>
+  </div>
+</div>
+
+<div class="container pb-5" style="max-width:860px">
+
+  <!-- Lista de empresas -->
+  <div class="card mb-4">
+    <div class="card-body p-4">
+      <h5 class="mb-3">Empresas configuradas</h5>
+
+      <div id="lista-empresas">
+        {% if empresas %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-dark">
+              <tr>
+                <th>Nombre</th>
+                <th>CUIT</th>
+                <th>Certificado</th>
+                <th>Modo</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tbody-empresas">
+              {% for e in empresas %}
+              <tr id="fila-{{ e.id }}">
+                <td class="fw-semibold">{{ e.nombre }}</td>
+                <td><code>{{ e.cuit }}</code></td>
+                <td class="text-muted small text-truncate" style="max-width:200px" title="{{ e.cert }}">{{ e.cert }}</td>
+                <td>
+                  {% if e.homologacion %}
+                  <span class="badge bg-warning text-dark">HOMO</span>
+                  {% else %}
+                  <span class="badge bg-success">PROD</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <button class="btn btn-sm btn-outline-danger" onclick="eliminarEmpresa('{{ e.id }}', '{{ e.nombre }}')">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted" id="msg-vacio">No hay empresas configuradas todavía.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Formulario agregar empresa -->
+  <div class="card">
+    <div class="card-body p-4">
+      <h5 class="mb-4"><i class="bi bi-plus-circle text-primary"></i> Agregar empresa</h5>
+
+      <div id="form-error" class="alert alert-danger d-none"></div>
+      <div id="form-ok"    class="alert alert-success d-none"></div>
+
+      <form id="form-empresa" novalidate>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Nombre / Razón social <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="f-nombre" placeholder="Ej: Mi Empresa SRL" required>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">CUIT <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="f-cuit" placeholder="20123456789 (11 dígitos, sin guiones)" maxlength="11" required>
+          <div class="form-text">Solo números, sin guiones ni espacios.</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Ruta del certificado (.crt) <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="f-cert"
+                 placeholder="C:\ARCA_Certificados\mi_empresa.crt" required>
+          <div class="form-text">Ruta completa al archivo .crt en esta computadora.</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Ruta de la clave privada (.key) <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="f-key"
+                 placeholder="C:\ARCA_Certificados\mi_empresa.key" required>
+          <div class="form-text">Ruta completa al archivo .key en esta computadora.</div>
+        </div>
+
+        <div class="mb-4">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="f-homo">
+            <label class="form-check-label" for="f-homo">
+              Usar <strong>homologación</strong> (pruebas) en vez de producción
+            </label>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-floppy"></i> Guardar empresa
+          </button>
+          <button type="button" class="btn btn-outline-secondary" onclick="limpiarForm()">
+            Limpiar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Instrucciones -->
+  <div class="card mt-4">
+    <div class="card-body p-4">
+      <h6><i class="bi bi-info-circle text-primary"></i> ¿Cómo obtener el certificado?</h6>
+      <ol class="mb-0 small text-muted">
+        <li>Ingresá a ARCA con clave fiscal del titular del CUIT.</li>
+        <li>Ir a <em>Administración de Certificados Digitales</em>.</li>
+        <li>Generá un CSR con OpenSSL y solicitá el certificado.</li>
+        <li>Descargá el <code>.crt</code> y guardá la <code>.key</code> en una carpeta segura.</li>
+        <li>Completá las rutas en este formulario.</li>
+      </ol>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.getElementById('form-empresa').addEventListener('submit', async e => {
+  e.preventDefault();
+  clearAlerts();
+
+  const body = {
+    nombre:       document.getElementById('f-nombre').value.trim(),
+    cuit:         document.getElementById('f-cuit').value.trim(),
+    cert:         document.getElementById('f-cert').value.trim(),
+    key:          document.getElementById('f-key').value.trim(),
+    homologacion: document.getElementById('f-homo').checked,
+  };
+
+  try {
+    const resp = await fetch('/api/empresas', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (data.error) {
+      showError(data.error);
+    } else {
+      showOk('Empresa guardada correctamente.');
+      limpiarForm();
+      agregarFilaTabla({ id: data.id, ...body });
+    }
+  } catch (err) {
+    showError('Error de red: ' + err);
+  }
+});
+
+function agregarFilaTabla(e) {
+  const tbody = document.getElementById('tbody-empresas');
+  const msgVacio = document.getElementById('msg-vacio');
+  if (msgVacio) msgVacio.remove();
+
+  if (!tbody) {
+    // tabla no existía (no había empresas), recargar para mostrarla completa
+    location.reload();
+    return;
+  }
+
+  const badge = e.homologacion
+    ? '<span class="badge bg-warning text-dark">HOMO</span>'
+    : '<span class="badge bg-success">PROD</span>';
+  const tr = document.createElement('tr');
+  tr.id = `fila-${e.id}`;
+  tr.innerHTML = `
+    <td class="fw-semibold">${escHtml(e.nombre)}</td>
+    <td><code>${escHtml(e.cuit)}</code></td>
+    <td class="text-muted small text-truncate" style="max-width:200px" title="${escHtml(e.cert)}">${escHtml(e.cert)}</td>
+    <td>${badge}</td>
+    <td>
+      <button class="btn btn-sm btn-outline-danger" onclick="eliminarEmpresa('${e.id}', '${escHtml(e.nombre)}')">
+        <i class="bi bi-trash"></i>
+      </button>
+    </td>`;
+  tbody.appendChild(tr);
+}
+
+async function eliminarEmpresa(id, nombre) {
+  if (!confirm(`¿Eliminar la empresa "${nombre}"?\nEsta acción no se puede deshacer.`)) return;
+  try {
+    const resp = await fetch(`/api/empresas/${id}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (data.error) { alert('Error: ' + data.error); return; }
+    const fila = document.getElementById(`fila-${id}`);
+    if (fila) fila.remove();
+  } catch (err) {
+    alert('Error de red: ' + err);
+  }
+}
+
+function limpiarForm() {
+  ['f-nombre','f-cuit','f-cert','f-key'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-homo').checked = false;
+  clearAlerts();
+}
+
+function clearAlerts() {
+  document.getElementById('form-error').classList.add('d-none');
+  document.getElementById('form-ok').classList.add('d-none');
+}
+function showError(msg) {
+  const el = document.getElementById('form-error');
+  el.textContent = msg; el.classList.remove('d-none');
+}
+function showOk(msg) {
+  const el = document.getElementById('form-ok');
+  el.textContent = msg; el.classList.remove('d-none');
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
