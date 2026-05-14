@@ -166,14 +166,30 @@
 
       <!-- Pasos siguientes -->
       <div class="alert alert-info mt-4 mb-0">
-        <strong>Pasos después de descargar:</strong>
+        <strong>Pasos después de descargar el ZIP:</strong>
         <ol class="mb-0 mt-2 small">
-          <li>Guardá el archivo <code>.key</code> en un lugar seguro (es tu clave privada, no la pierdas).</li>
+          <li>
+            El ZIP contiene dos archivos. El sistema ya los guardó automáticamente en:
+            <div class="mt-1 mb-1">
+              <code class="d-block p-2 bg-white rounded border">{{ certs_dir }}</code>
+            </div>
+          </li>
           <li>Ingresá a <strong>ARCA</strong> con clave fiscal del titular del CUIT.</li>
           <li>Ir a <em>Administración de Certificados Digitales</em> → <em>Agregar alias</em>.</li>
-          <li>Subí el archivo <code>.csr</code> y completá el proceso.</li>
-          <li>Descargá el <code>.crt</code> que te entrega AFIP.</li>
-          <li>Volvé aquí y agregá la empresa con las rutas del <code>.crt</code> y el <code>.key</code>.</li>
+          <li>Subí el archivo <code>CUIT.csr</code> y completá el proceso.</li>
+          <li>
+            Descargá el <code>.crt</code> que te entrega AFIP y guardalo en la misma carpeta:
+            <div class="mt-1 mb-1">
+              <code class="d-block p-2 bg-white rounded border">{{ certs_dir }}</code>
+            </div>
+          </li>
+          <li>
+            Volvé a la sección <em>Agregar empresa</em> y usá estas rutas:<br>
+            <span class="text-muted">Certificado:</span>
+            <code>{{ certs_dir }}\CUIT.crt</code><br>
+            <span class="text-muted">Clave privada:</span>
+            <code>{{ certs_dir }}\CUIT_clave.key</code>
+          </li>
         </ol>
       </div>
     </div>

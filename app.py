@@ -384,7 +384,7 @@ def generar_csr():
 @app.route('/admin')
 def admin():
     empresas = _load_empresas()
-    return render_template('admin.html', empresas=empresas)
+    return render_template('admin.html', empresas=empresas, certs_dir=CERTS)
 
 
 if __name__ == '__main__':
