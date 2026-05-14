@@ -96,15 +96,15 @@
         <div class="mb-3">
           <label class="form-label fw-semibold">Ruta del certificado (.crt) <span class="text-danger">*</span></label>
           <input type="text" class="form-control" id="f-cert"
-                 placeholder="C:\ARCA_Certificados\mi_empresa.crt" required>
-          <div class="form-text">Ruta completa al archivo .crt en esta computadora.</div>
+                 placeholder="{{ certs_dir }}\CUIT.crt" required>
+          <div class="form-text">Ej: <code>{{ certs_dir }}\20267894362.crt</code></div>
         </div>
 
         <div class="mb-3">
           <label class="form-label fw-semibold">Ruta de la clave privada (.key) <span class="text-danger">*</span></label>
           <input type="text" class="form-control" id="f-key"
-                 placeholder="C:\ARCA_Certificados\mi_empresa.key" required>
-          <div class="form-text">Ruta completa al archivo .key en esta computadora.</div>
+                 placeholder="{{ certs_dir }}\CUIT_clave.key" required>
+          <div class="form-text">Ej: <code>{{ certs_dir }}\20267894362_clave.key</code></div>
         </div>
 
         <div class="mb-4">
