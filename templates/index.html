@@ -352,8 +352,9 @@ async function imprimirPDF(idx) {
   const filaIdx   = resultado.fila - 2;
   const registro  = registrosData[filaIdx];
 
+  // Si tenemos los datos en memoria los usamos; si no, leemos desde el Excel guardado
   if (!registro) {
-    alert('No se encontraron los datos del comprobante. Volvé a cargar el archivo.');
+    window.open(`/pdf/${empresaActual.id}/${resultado.fila}`, '_blank');
     return;
   }
 
@@ -374,7 +375,6 @@ async function imprimirPDF(idx) {
       return;
     }
 
-    // Abrir el PDF en una nueva pestaña para ver e imprimir
     const blob = await resp.blob();
     const url  = URL.createObjectURL(blob);
     window.open(url, '_blank');

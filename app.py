@@ -325,6 +325,58 @@ def plantilla():
 
 # ---------- generador de PDF -------------------------------------------------
 
+@app.route('/pdf/<empresa_id>/<int:fila>')
+def pdf_desde_resultado(empresa_id, fila):
+    """Genera el PDF leyendo el Excel de resultados ya guardado en disco."""
+    empresa = _get_empresa(empresa_id)
+    if not empresa:
+        return 'Empresa no encontrada', 404
+
+    path = _resultado_path(empresa_id)
+    if not os.path.exists(path):
+        return 'No hay resultados guardados para esta empresa', 404
+
+    try:
+        df = pd.read_excel(path)
+        df.columns = [c.lower().strip().replace(' ', '_') for c in df.columns]
+
+        # fila 2 en Excel = índice 0 en DataFrame
+        idx = fila - 2
+        if idx < 0 or idx >= len(df):
+            return f'Fila {fila} no encontrada', 404
+
+        row = df.iloc[idx].to_dict()
+
+        registro = {
+            'punto_venta': row.get('punto_venta', 0),
+            'tipo_cbte':   row.get('tipo_cbte', 11),
+            'concepto':    row.get('concepto', 2),
+            'doc_tipo':    row.get('doc_tipo', 99),
+            'doc_nro':     row.get('doc_nro', 0),
+            'razon_social':row.get('razon_social', ''),
+            'fecha':       str(row.get('fecha', '')),
+            'imp_neto':    row.get('imp_neto', 0),
+            'alicuota':    row.get('alicuota', 0),
+            'imp_iva':     row.get('imp_iva', 0),
+            'imp_total':   row.get('imp_total', 0),
+        }
+
+        resultado = {
+            'nro':     int(row.get('nro_cbte', 0)),
+            'cae':     str(row.get('cae', '')),
+            'vto_cae': str(row.get('vto_cae', '')),
+        }
+
+        pdf_buf = factura_pdf.generar_pdf(empresa, registro, resultado)
+        pv  = int(registro['punto_venta'])
+        nro = int(resultado['nro'])
+        nombre = f"factura_{pv:04d}-{nro:08d}.pdf"
+        return send_file(pdf_buf, as_attachment=False,
+                         download_name=nombre, mimetype='application/pdf')
+    except Exception as e:
+        return f'Error al generar PDF: {e}', 500
+
+
 @app.route('/imprimir', methods=['POST'])
 def imprimir():
     data       = request.get_json(force=True)
