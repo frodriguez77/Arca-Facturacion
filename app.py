@@ -15,6 +15,7 @@ from openpyxl.styles import PatternFill
 import config
 import wsaa
 import wsfe
+import factura_pdf
 
 app = Flask(__name__)
 app.secret_key = 'arca_2026'
@@ -314,6 +315,32 @@ def plantilla():
     out.seek(0)
     return send_file(out, as_attachment=True, download_name='plantilla_facturas.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+# ---------- generador de PDF -------------------------------------------------
+
+@app.route('/imprimir', methods=['POST'])
+def imprimir():
+    data       = request.get_json(force=True)
+    empresa_id = (data.get('empresa_id') or '').strip()
+    empresa    = _get_empresa(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 400
+
+    registro  = data.get('registro')
+    resultado = data.get('resultado')
+    if not registro or not resultado:
+        return jsonify({'error': 'Faltan datos del comprobante'}), 400
+
+    try:
+        pdf_buf = factura_pdf.generar_pdf(empresa, registro, resultado)
+        nro     = int(resultado.get('nro', 0))
+        pv      = int(registro.get('punto_venta', 0))
+        nombre  = f"factura_{pv:04d}-{nro:08d}.pdf"
+        return send_file(pdf_buf, as_attachment=False,
+                         download_name=nombre, mimetype='application/pdf')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 # ---------- generador de CSR -------------------------------------------------
