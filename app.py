@@ -16,6 +16,7 @@ import config
 import wsaa
 import wsfe
 import factura_pdf
+from openssl_util import encontrar_openssl
 
 app = Flask(__name__)
 app.secret_key = 'arca_2026'
@@ -365,9 +366,10 @@ def generar_csr():
     key_path = os.path.join(CERTS, f'{cuit}_clave.key')
     csr_path = os.path.join(CERTS, f'{cuit}.csr')
 
-    openssl = r"C:\Program Files\OpenSSL-Win64\bin\openssl.exe"
-    if not os.path.exists(openssl):
-        return jsonify({'error': 'OpenSSL no encontrado en ' + openssl}), 500
+    try:
+        openssl = encontrar_openssl()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
     try:
         # 1. Generar clave privada RSA 2048

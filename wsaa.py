@@ -10,10 +10,10 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+from openssl_util import encontrar_openssl
+
 _cache = {}
 _CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wsaa_cache.json')
-
-OPENSSL = r"C:\Program Files\OpenSSL-Win64\bin\openssl.exe"
 
 
 def _load_cache():
@@ -68,7 +68,7 @@ def _sign_tra(tra_bytes, cert_path, key_path):
             f.write(tra_bytes)
 
         result = subprocess.run(
-            [OPENSSL, 'smime', '-sign',
+            [encontrar_openssl(), 'smime', '-sign',
              '-in',     tra_file,
              '-signer', cert_path,
              '-inkey',  key_path,
