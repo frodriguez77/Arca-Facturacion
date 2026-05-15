@@ -56,8 +56,13 @@
                   <span class="badge bg-success">PROD</span>
                   {% endif %}
                 </td>
-                <td>
-                  <button class="btn btn-sm btn-outline-danger" onclick="eliminarEmpresa('{{ e.id }}', '{{ e.nombre }}')">
+                <td class="d-flex gap-1">
+                  <button class="btn btn-sm btn-outline-primary"
+                    onclick="editarEmpresa({{ e | tojson }})">
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger"
+                    onclick="eliminarEmpresa('{{ e.id }}', '{{ e.nombre }}')">
                     <i class="bi bi-trash"></i>
                   </button>
                 </td>
@@ -73,10 +78,10 @@
     </div>
   </div>
 
-  <!-- Formulario agregar empresa -->
+  <!-- Formulario agregar / editar empresa -->
   <div class="card">
     <div class="card-body p-4">
-      <h5 class="mb-4"><i class="bi bi-plus-circle text-primary"></i> Agregar empresa</h5>
+      <h5 class="mb-4" id="form-titulo"><i class="bi bi-plus-circle text-primary"></i> Agregar empresa</h5>
 
       <div id="form-error" class="alert alert-danger d-none"></div>
       <div id="form-ok"    class="alert alert-success d-none"></div>
@@ -142,12 +147,13 @@
           </div>
         </div>
 
+        <input type="hidden" id="f-id">
         <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-primary">
+          <button type="submit" class="btn btn-primary" id="btn-guardar">
             <i class="bi bi-floppy"></i> Guardar empresa
           </button>
           <button type="button" class="btn btn-outline-secondary" onclick="limpiarForm()">
-            Limpiar
+            Cancelar
           </button>
         </div>
       </form>
@@ -229,6 +235,7 @@ document.getElementById('form-empresa').addEventListener('submit', async e => {
   e.preventDefault();
   clearAlerts();
 
+  const id   = document.getElementById('f-id').value.trim();
   const body = {
     nombre:              document.getElementById('f-nombre').value.trim(),
     cuit:                document.getElementById('f-cuit').value.trim(),
@@ -242,19 +249,21 @@ document.getElementById('form-empresa').addEventListener('submit', async e => {
     inicio_actividades:  document.getElementById('f-inicio-act').value.trim(),
   };
 
+  const editando = !!id;
+  const url      = editando ? `/api/empresas/${id}` : '/api/empresas';
+  const method   = editando ? 'PUT' : 'POST';
+
   try {
-    const resp = await fetch('/api/empresas', {
-      method:  'POST',
-      headers: {'Content-Type': 'application/json'},
-      body:    JSON.stringify(body),
+    const resp = await fetch(url, {
+      method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
     });
     const data = await resp.json();
     if (data.error) {
       showError(data.error);
     } else {
-      showOk('Empresa guardada correctamente.');
+      showOk(editando ? 'Empresa actualizada correctamente.' : 'Empresa guardada correctamente.');
       limpiarForm();
-      agregarFilaTabla({ id: data.id, ...body });
+      location.reload();   // recargar tabla para reflejar cambios
     }
   } catch (err) {
     showError('Error de red: ' + err);
@@ -304,11 +313,38 @@ async function eliminarEmpresa(id, nombre) {
 }
 
 function limpiarForm() {
-  ['f-nombre','f-cuit','f-cert','f-key',
+  ['f-id','f-nombre','f-cuit','f-cert','f-key',
    'f-domicilio','f-telefono','f-localidad','f-ing-brutos','f-inicio-act']
     .forEach(id => document.getElementById(id).value = '');
   document.getElementById('f-homo').checked = false;
+  document.getElementById('form-titulo').innerHTML =
+    '<i class="bi bi-plus-circle text-primary"></i> Agregar empresa';
+  document.getElementById('btn-guardar').textContent = ' Guardar empresa';
+  document.getElementById('btn-guardar').innerHTML =
+    '<i class="bi bi-floppy"></i> Guardar empresa';
   clearAlerts();
+}
+
+function editarEmpresa(e) {
+  document.getElementById('f-id').value            = e.id            || '';
+  document.getElementById('f-nombre').value        = e.nombre        || '';
+  document.getElementById('f-cuit').value          = e.cuit          || '';
+  document.getElementById('f-cert').value          = e.cert          || '';
+  document.getElementById('f-key').value           = e.key           || '';
+  document.getElementById('f-homo').checked        = !!e.homologacion;
+  document.getElementById('f-domicilio').value     = e.domicilio     || '';
+  document.getElementById('f-telefono').value      = e.telefono      || '';
+  document.getElementById('f-localidad').value     = e.localidad     || '';
+  document.getElementById('f-ing-brutos').value    = e.ing_brutos    || '';
+  document.getElementById('f-inicio-act').value    = e.inicio_actividades || '';
+
+  document.getElementById('form-titulo').innerHTML =
+    '<i class="bi bi-pencil text-primary"></i> Editar empresa';
+  document.getElementById('btn-guardar').innerHTML =
+    '<i class="bi bi-floppy"></i> Guardar cambios';
+
+  clearAlerts();
+  document.getElementById('form-titulo').scrollIntoView({ behavior: 'smooth' });
 }
 
 function clearAlerts() {

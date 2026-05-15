@@ -117,6 +117,43 @@ def api_empresa_add():
     _save_empresas(empresas)
     return jsonify({'ok': True, 'id': empresa_id})
 
+@app.route('/api/empresas/<empresa_id>', methods=['PUT'])
+def api_empresa_edit(empresa_id):
+    empresas = _load_empresas()
+    idx = next((i for i,e in enumerate(empresas) if e['id'] == empresa_id), None)
+    if idx is None:
+        return jsonify({'error': 'Empresa no encontrada'}), 404
+
+    data   = request.get_json(force=True)
+    nombre = (data.get('nombre') or '').strip()
+    cuit   = (data.get('cuit')   or '').strip()
+    cert   = (data.get('cert')   or '').strip()
+    key    = (data.get('key')    or '').strip()
+
+    if not nombre or not cuit or not cert or not key:
+        return jsonify({'error': 'Nombre, CUIT, certificado y clave son obligatorios'}), 400
+    if not re.fullmatch(r'\d{11}', cuit):
+        return jsonify({'error': 'El CUIT debe tener 11 dígitos sin guiones'}), 400
+
+    # Si cambió el CUIT verificar que no exista en otra empresa
+    if any(e['cuit'] == cuit and e['id'] != empresa_id for e in empresas):
+        return jsonify({'error': f'Ya existe otra empresa con CUIT {cuit}'}), 400
+
+    empresas[idx].update({
+        'nombre':             nombre,
+        'cuit':               cuit,
+        'cert':               cert,
+        'key':                key,
+        'homologacion':       bool(data.get('homologacion', False)),
+        'domicilio':          (data.get('domicilio') or '').strip(),
+        'telefono':           (data.get('telefono')  or '').strip(),
+        'localidad':          (data.get('localidad') or '').strip(),
+        'ing_brutos':         (data.get('ing_brutos') or '').strip(),
+        'inicio_actividades': (data.get('inicio_actividades') or '').strip(),
+    })
+    _save_empresas(empresas)
+    return jsonify({'ok': True})
+
 @app.route('/api/empresas/<empresa_id>', methods=['DELETE'])
 def api_empresa_delete(empresa_id):
     empresas = _load_empresas()
