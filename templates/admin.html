@@ -107,6 +107,32 @@
           <div class="form-text">Ej: <code>{{ certs_dir }}\20267894362_clave.key</code></div>
         </div>
 
+        <hr class="my-3">
+        <p class="text-muted small mb-3"><i class="bi bi-file-earmark-pdf"></i> Datos opcionales para el PDF de la factura</p>
+
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label">Domicilio</label>
+            <input type="text" class="form-control" id="f-domicilio" placeholder="Ej: San Martín 1878">
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Teléfono / Fax</label>
+            <input type="text" class="form-control" id="f-telefono" placeholder="Ej: 0342 4593015">
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Localidad</label>
+            <input type="text" class="form-control" id="f-localidad" placeholder="Ej: 3000 - Santa Fe">
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Ing. Brutos</label>
+            <input type="text" class="form-control" id="f-ing-brutos" placeholder="Ej: Conv Mult. 921-744130">
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">Inicio de actividades</label>
+            <input type="text" class="form-control" id="f-inicio-act" placeholder="Ej: 16-05-1979">
+          </div>
+        </div>
+
         <div class="mb-4">
           <div class="form-check form-switch">
             <input class="form-check-input" type="checkbox" id="f-homo">
@@ -204,11 +230,16 @@ document.getElementById('form-empresa').addEventListener('submit', async e => {
   clearAlerts();
 
   const body = {
-    nombre:       document.getElementById('f-nombre').value.trim(),
-    cuit:         document.getElementById('f-cuit').value.trim(),
-    cert:         document.getElementById('f-cert').value.trim(),
-    key:          document.getElementById('f-key').value.trim(),
-    homologacion: document.getElementById('f-homo').checked,
+    nombre:              document.getElementById('f-nombre').value.trim(),
+    cuit:                document.getElementById('f-cuit').value.trim(),
+    cert:                document.getElementById('f-cert').value.trim(),
+    key:                 document.getElementById('f-key').value.trim(),
+    homologacion:        document.getElementById('f-homo').checked,
+    domicilio:           document.getElementById('f-domicilio').value.trim(),
+    telefono:            document.getElementById('f-telefono').value.trim(),
+    localidad:           document.getElementById('f-localidad').value.trim(),
+    ing_brutos:          document.getElementById('f-ing-brutos').value.trim(),
+    inicio_actividades:  document.getElementById('f-inicio-act').value.trim(),
   };
 
   try {
@@ -273,7 +304,9 @@ async function eliminarEmpresa(id, nombre) {
 }
 
 function limpiarForm() {
-  ['f-nombre','f-cuit','f-cert','f-key'].forEach(id => document.getElementById(id).value = '');
+  ['f-nombre','f-cuit','f-cert','f-key',
+   'f-domicilio','f-telefono','f-localidad','f-ing-brutos','f-inicio-act']
+    .forEach(id => document.getElementById(id).value = '');
   document.getElementById('f-homo').checked = false;
   clearAlerts();
 }

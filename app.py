@@ -101,12 +101,17 @@ def api_empresa_add():
         empresa_id = empresa_id + '_' + str(uuid.uuid4())[:4]
 
     empresas.append({
-        'id': empresa_id,
-        'nombre': nombre,
-        'cuit': cuit,
-        'cert': cert,
-        'key': key,
-        'homologacion': homo,
+        'id':                 empresa_id,
+        'nombre':             nombre,
+        'cuit':               cuit,
+        'cert':               cert,
+        'key':                key,
+        'homologacion':       homo,
+        'domicilio':          (data.get('domicilio') or '').strip(),
+        'telefono':           (data.get('telefono')  or '').strip(),
+        'localidad':          (data.get('localidad') or '').strip(),
+        'ing_brutos':         (data.get('ing_brutos') or '').strip(),
+        'inicio_actividades': (data.get('inicio_actividades') or '').strip(),
     })
     _save_empresas(empresas)
     return jsonify({'ok': True, 'id': empresa_id})
