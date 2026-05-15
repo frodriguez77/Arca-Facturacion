@@ -316,14 +316,8 @@ def _draw_page(c, titulo, empresa, registro, resultado):
     # TIMESTAMP + SON MONEDA
     # ══════════════════════════════════════════════════════════════
     hline(y_son)
-    ahora = datetime.now().strftime('%b %-d %Y %I:%M%p') if hasattr(datetime, 'strftime') else ''
-    try:
-        ahora = datetime.now().strftime('%b %#d %Y %I:%M%p')   # Windows
-    except Exception:
-        try:
-            ahora = datetime.now().strftime('%b %-d %Y %I:%M%p')  # Linux/Mac
-        except Exception:
-            ahora = datetime.now().strftime('%b %d %Y %I:%M%p')
+    now   = datetime.now()
+    ahora = f"{now.strftime('%b')} {now.day} {now.strftime('%Y %I:%M%p')}"
 
     txt(ML + 0.6*cm, y_son - 0.45*cm, ahora,               size=8)
     txt(ML + 0.6*cm, y_son - 0.9*cm,  _son_moneda(imp_total), size=8)
