@@ -1,6 +1,5 @@
 import functools
 import io
-import json
 import os
 import re
 import subprocess
@@ -21,15 +20,15 @@ import wsaa
 import wsfe
 import factura_pdf
 from openssl_util import encontrar_openssl
+from repository import EmpresaRepository, UsuarioRepository
 
 app = Flask(__name__)
 app.secret_key = 'arca_2026_secret_key_change_in_prod'
 
-BASE     = os.path.dirname(os.path.abspath(__file__))
-UPLOAD   = os.path.join(BASE, 'uploads')
-CERTS    = os.path.join(BASE, 'certificados')
-EMPRESAS = os.path.join(BASE, 'empresas.json')
-USUARIOS = os.path.join(BASE, 'usuarios.json')
+BASE   = os.path.dirname(os.path.abspath(__file__))
+UPLOAD = os.path.join(BASE, 'uploads')
+CERTS  = os.path.join(BASE, 'certificados')
+
 COLUMNAS = [
     'punto_venta', 'tipo_cbte', 'concepto',
     'doc_tipo', 'doc_nro', 'razon_social',
@@ -40,82 +39,59 @@ os.makedirs(UPLOAD, exist_ok=True)
 os.makedirs(CERTS,  exist_ok=True)
 
 
-# ---------- helpers empresas --------------------------------------------------
+# ---------- helpers -----------------------------------------------------------
 
-def _load_empresas():
-    if not os.path.exists(EMPRESAS):
-        return []
-    with open(EMPRESAS, 'r', encoding='utf-8') as f:
-        return json.load(f)
-
-def _save_empresas(data):
-    with open(EMPRESAS, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-def _get_empresa(empresa_id):
-    for e in _load_empresas():
-        if e['id'] == empresa_id:
-            return e
-    return None
-
-def _upload_path(empresa_id):
+def _upload_path(empresa_id: str) -> str:
     return os.path.join(UPLOAD, f'facturas_{empresa_id}.xlsx')
 
-def _resultado_path(empresa_id):
+def _resultado_path(empresa_id: str) -> str:
     return os.path.join(UPLOAD, f'facturas_{empresa_id}_resultado.xlsx')
 
-def _empresa_urls(empresa):
+def _empresa_urls(empresa: dict) -> tuple[str, str]:
     if empresa.get('homologacion'):
         return config.WSAA_URL_HOMO, config.WSFE_WSDL_HOMO
     return config.WSAA_URL_PROD, config.WSFE_WSDL_PROD
 
-
-# ---------- helpers usuarios --------------------------------------------------
-
-def _load_usuarios():
-    if not os.path.exists(USUARIOS):
-        return []
-    with open(USUARIOS, 'r', encoding='utf-8') as f:
-        return json.load(f)
-
-def _save_usuarios(data):
-    with open(USUARIOS, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-def _get_current_user():
+def _get_current_user() -> dict | None:
     uid = session.get('user_id')
     if not uid:
         return None
-    for u in _load_usuarios():
-        if u['id'] == uid:
-            return u
-    return None
+    return UsuarioRepository.get_by_id(uid)
 
-def _user_empresas(user):
-    """Retorna las empresas accesibles para el usuario."""
-    todas = _load_empresas()
+def _user_empresas(user: dict) -> list[dict]:
+    """Empresas accesibles para el usuario."""
     if user['rol'] == 'admin' or not user.get('empresas'):
-        return todas
-    return [e for e in todas if e['id'] in user.get('empresas', [])]
+        return EmpresaRepository.get_all()
+    return EmpresaRepository.filter_by_ids(user.get('empresas', []))
 
-def _user_can_access(user, empresa_id):
-    """Verifica si el usuario puede operar sobre esa empresa."""
+def _user_can_access(user: dict, empresa_id: str) -> bool:
+    """True si el usuario puede operar sobre esa empresa."""
     if user['rol'] == 'admin':
         return True
     return empresa_id in user.get('empresas', [])
 
+def _unique_id(base: str, exists_fn) -> str:
+    """Genera un ID único a partir de un nombre base."""
+    candidate = re.sub(r'[^a-z0-9]', '', base.lower())[:20] or str(uuid.uuid4())[:8]
+    if exists_fn(candidate):
+        candidate = candidate + '_' + str(uuid.uuid4())[:4]
+    return candidate
+
+
+# ---------- inicialización ---------------------------------------------------
+
 def _init_admin():
     """Crea el usuario admin por defecto si no hay ningún usuario registrado."""
-    if not _load_usuarios():
-        _save_usuarios([{
+    if UsuarioRepository.count() == 0:
+        UsuarioRepository.add({
             'id':            'admin',
             'username':      'admin',
             'password_hash': generate_password_hash('admin123'),
             'rol':           'admin',
             'nombre':        'Administrador',
             'empresas':      [],
-        }])
-        print("Usuario admin creado con contraseña: admin123 — ¡cambiarla desde Admin!")
+        })
+        print("Usuario admin creado — contraseña: admin123 (cambiala desde Admin)")
 
 _init_admin()
 
@@ -154,7 +130,7 @@ def login():
     if request.method == 'POST':
         username = (request.form.get('username') or '').strip()
         password = request.form.get('password') or ''
-        usuario  = next((u for u in _load_usuarios() if u['username'] == username), None)
+        usuario  = UsuarioRepository.get_by_username(username)
         if usuario and check_password_hash(usuario['password_hash'], password):
             session['user_id'] = usuario['id']
             return redirect(url_for('index'))
@@ -183,8 +159,7 @@ def index():
 @app.route('/api/empresas')
 @login_required
 def api_empresas():
-    user = _get_current_user()
-    return jsonify(_user_empresas(user))
+    return jsonify(_user_empresas(_get_current_user()))
 
 @app.route('/api/empresas', methods=['POST'])
 @admin_required
@@ -194,60 +169,17 @@ def api_empresa_add():
     cuit   = (data.get('cuit')   or '').strip()
     cert   = (data.get('cert')   or '').strip()
     key    = (data.get('key')    or '').strip()
-    homo   = bool(data.get('homologacion', False))
 
     if not nombre or not cuit or not cert or not key:
         return jsonify({'error': 'Nombre, CUIT, certificado y clave son obligatorios'}), 400
     if not re.fullmatch(r'\d{11}', cuit):
         return jsonify({'error': 'El CUIT debe tener 11 dígitos sin guiones'}), 400
-
-    empresas = _load_empresas()
-    if any(e['cuit'] == cuit for e in empresas):
+    if EmpresaRepository.cuit_exists(cuit):
         return jsonify({'error': f'Ya existe una empresa con CUIT {cuit}'}), 400
 
-    empresa_id = re.sub(r'[^a-z0-9]', '', nombre.lower())[:20] or str(uuid.uuid4())[:8]
-    if any(e['id'] == empresa_id for e in empresas):
-        empresa_id = empresa_id + '_' + str(uuid.uuid4())[:4]
-
-    empresas.append({
+    empresa_id = _unique_id(nombre, EmpresaRepository.id_exists)
+    EmpresaRepository.add({
         'id':                 empresa_id,
-        'nombre':             nombre,
-        'cuit':               cuit,
-        'cert':               cert,
-        'key':                key,
-        'homologacion':       homo,
-        'domicilio':          (data.get('domicilio') or '').strip(),
-        'telefono':           (data.get('telefono')  or '').strip(),
-        'localidad':          (data.get('localidad') or '').strip(),
-        'ing_brutos':         (data.get('ing_brutos') or '').strip(),
-        'inicio_actividades': (data.get('inicio_actividades') or '').strip(),
-    })
-    _save_empresas(empresas)
-    return jsonify({'ok': True, 'id': empresa_id})
-
-@app.route('/api/empresas/<empresa_id>', methods=['PUT'])
-@admin_required
-def api_empresa_edit(empresa_id):
-    empresas = _load_empresas()
-    idx = next((i for i, e in enumerate(empresas) if e['id'] == empresa_id), None)
-    if idx is None:
-        return jsonify({'error': 'Empresa no encontrada'}), 404
-
-    data   = request.get_json(force=True)
-    nombre = (data.get('nombre') or '').strip()
-    cuit   = (data.get('cuit')   or '').strip()
-    cert   = (data.get('cert')   or '').strip()
-    key    = (data.get('key')    or '').strip()
-
-    if not nombre or not cuit or not cert or not key:
-        return jsonify({'error': 'Nombre, CUIT, certificado y clave son obligatorios'}), 400
-    if not re.fullmatch(r'\d{11}', cuit):
-        return jsonify({'error': 'El CUIT debe tener 11 dígitos sin guiones'}), 400
-
-    if any(e['cuit'] == cuit and e['id'] != empresa_id for e in empresas):
-        return jsonify({'error': f'Ya existe otra empresa con CUIT {cuit}'}), 400
-
-    empresas[idx].update({
         'nombre':             nombre,
         'cuit':               cuit,
         'cert':               cert,
@@ -259,17 +191,46 @@ def api_empresa_edit(empresa_id):
         'ing_brutos':         (data.get('ing_brutos') or '').strip(),
         'inicio_actividades': (data.get('inicio_actividades') or '').strip(),
     })
-    _save_empresas(empresas)
+    return jsonify({'ok': True, 'id': empresa_id})
+
+@app.route('/api/empresas/<empresa_id>', methods=['PUT'])
+@admin_required
+def api_empresa_edit(empresa_id):
+    if not EmpresaRepository.get_by_id(empresa_id):
+        return jsonify({'error': 'Empresa no encontrada'}), 404
+
+    data   = request.get_json(force=True)
+    nombre = (data.get('nombre') or '').strip()
+    cuit   = (data.get('cuit')   or '').strip()
+    cert   = (data.get('cert')   or '').strip()
+    key    = (data.get('key')    or '').strip()
+
+    if not nombre or not cuit or not cert or not key:
+        return jsonify({'error': 'Nombre, CUIT, certificado y clave son obligatorios'}), 400
+    if not re.fullmatch(r'\d{11}', cuit):
+        return jsonify({'error': 'El CUIT debe tener 11 dígitos sin guiones'}), 400
+    if EmpresaRepository.cuit_exists(cuit, exclude_id=empresa_id):
+        return jsonify({'error': f'Ya existe otra empresa con CUIT {cuit}'}), 400
+
+    EmpresaRepository.update(empresa_id, {
+        'nombre':             nombre,
+        'cuit':               cuit,
+        'cert':               cert,
+        'key':                key,
+        'homologacion':       bool(data.get('homologacion', False)),
+        'domicilio':          (data.get('domicilio') or '').strip(),
+        'telefono':           (data.get('telefono')  or '').strip(),
+        'localidad':          (data.get('localidad') or '').strip(),
+        'ing_brutos':         (data.get('ing_brutos') or '').strip(),
+        'inicio_actividades': (data.get('inicio_actividades') or '').strip(),
+    })
     return jsonify({'ok': True})
 
 @app.route('/api/empresas/<empresa_id>', methods=['DELETE'])
 @admin_required
 def api_empresa_delete(empresa_id):
-    empresas = _load_empresas()
-    nuevas   = [e for e in empresas if e['id'] != empresa_id]
-    if len(nuevas) == len(empresas):
+    if not EmpresaRepository.delete(empresa_id):
         return jsonify({'error': 'Empresa no encontrada'}), 404
-    _save_empresas(nuevas)
     for path in [_upload_path(empresa_id), _resultado_path(empresa_id)]:
         if os.path.exists(path):
             os.remove(path)
@@ -281,10 +242,7 @@ def api_empresa_delete(empresa_id):
 @app.route('/api/usuarios')
 @admin_required
 def api_usuarios():
-    usuarios = _load_usuarios()
-    # No devolver password_hash al frontend
-    return jsonify([{k: v for k, v in u.items() if k != 'password_hash'}
-                    for u in usuarios])
+    return jsonify(UsuarioRepository.get_all_public())
 
 @app.route('/api/usuarios', methods=['POST'])
 @admin_required
@@ -300,16 +258,11 @@ def api_usuario_add():
         return jsonify({'error': 'Usuario y contraseña son obligatorios'}), 400
     if rol not in ('admin', 'usuario'):
         return jsonify({'error': 'Rol inválido'}), 400
+    if UsuarioRepository.username_exists(username):
+        return jsonify({'error': 'Ya existe un usuario con ese nombre'}), 400
 
-    usuarios = _load_usuarios()
-    if any(u['username'] == username for u in usuarios):
-        return jsonify({'error': f'Ya existe un usuario con ese nombre'}), 400
-
-    uid = re.sub(r'[^a-z0-9]', '', username.lower())[:20] or str(uuid.uuid4())[:8]
-    if any(u['id'] == uid for u in usuarios):
-        uid = uid + '_' + str(uuid.uuid4())[:4]
-
-    usuarios.append({
+    uid = _unique_id(username, UsuarioRepository.id_exists)
+    UsuarioRepository.add({
         'id':            uid,
         'username':      username,
         'password_hash': generate_password_hash(password),
@@ -317,15 +270,12 @@ def api_usuario_add():
         'nombre':        nombre or username,
         'empresas':      empresas if rol == 'usuario' else [],
     })
-    _save_usuarios(usuarios)
     return jsonify({'ok': True, 'id': uid})
 
 @app.route('/api/usuarios/<uid>', methods=['PUT'])
 @admin_required
 def api_usuario_edit(uid):
-    usuarios = _load_usuarios()
-    idx = next((i for i, u in enumerate(usuarios) if u['id'] == uid), None)
-    if idx is None:
+    if not UsuarioRepository.get_by_id(uid):
         return jsonify({'error': 'Usuario no encontrado'}), 404
 
     data     = request.get_json(force=True)
@@ -339,19 +289,19 @@ def api_usuario_edit(uid):
         return jsonify({'error': 'El nombre de usuario es obligatorio'}), 400
     if rol not in ('admin', 'usuario'):
         return jsonify({'error': 'Rol inválido'}), 400
-    if any(u['username'] == username and u['id'] != uid for u in usuarios):
+    if UsuarioRepository.username_exists(username, exclude_id=uid):
         return jsonify({'error': 'Ese nombre de usuario ya está en uso'}), 400
 
-    usuarios[idx].update({
+    fields = {
         'username': username,
         'nombre':   nombre or username,
         'rol':      rol,
         'empresas': empresas if rol == 'usuario' else [],
-    })
-    if password:  # solo actualizar si se envió nueva contraseña
-        usuarios[idx]['password_hash'] = generate_password_hash(password)
+    }
+    if password:
+        fields['password_hash'] = generate_password_hash(password)
 
-    _save_usuarios(usuarios)
+    UsuarioRepository.update(uid, fields)
     return jsonify({'ok': True})
 
 @app.route('/api/usuarios/<uid>', methods=['DELETE'])
@@ -360,19 +310,14 @@ def api_usuario_delete(uid):
     user = _get_current_user()
     if user['id'] == uid:
         return jsonify({'error': 'No podés eliminar tu propio usuario'}), 400
-    usuarios  = _load_usuarios()
-    nuevos    = [u for u in usuarios if u['id'] != uid]
-    if len(nuevos) == len(usuarios):
+    if not UsuarioRepository.delete(uid):
         return jsonify({'error': 'Usuario no encontrado'}), 404
-    _save_usuarios(nuevos)
     return jsonify({'ok': True})
 
 @app.route('/api/usuarios/<uid>/cambiar-password', methods=['POST'])
 @login_required
 def api_cambiar_password(uid):
-    """Permite a un usuario cambiar su propia contraseña."""
     user = _get_current_user()
-    # Solo el propio usuario o un admin pueden cambiar la contraseña
     if user['id'] != uid and user['rol'] != 'admin':
         return jsonify({'error': 'Sin permisos'}), 403
 
@@ -384,14 +329,10 @@ def api_cambiar_password(uid):
         return jsonify({'error': 'La contraseña debe tener al menos 6 caracteres'}), 400
     if nueva != confirmacion:
         return jsonify({'error': 'Las contraseñas no coinciden'}), 400
-
-    usuarios = _load_usuarios()
-    idx = next((i for i, u in enumerate(usuarios) if u['id'] == uid), None)
-    if idx is None:
+    if not UsuarioRepository.get_by_id(uid):
         return jsonify({'error': 'Usuario no encontrado'}), 404
 
-    usuarios[idx]['password_hash'] = generate_password_hash(nueva)
-    _save_usuarios(usuarios)
+    UsuarioRepository.update(uid, {'password_hash': generate_password_hash(nueva)})
     return jsonify({'ok': True})
 
 
@@ -402,7 +343,7 @@ def api_cambiar_password(uid):
 def upload():
     user       = _get_current_user()
     empresa_id = request.form.get('empresa_id', '').strip()
-    empresa    = _get_empresa(empresa_id)
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
     if not empresa:
         return jsonify({'error': 'Seleccioná una empresa antes de cargar el archivo'}), 400
     if not _user_can_access(user, empresa_id):
@@ -445,7 +386,7 @@ def procesar():
     user       = _get_current_user()
     data       = request.get_json(force=True)
     empresa_id = (data.get('empresa_id') or '').strip()
-    empresa    = _get_empresa(empresa_id)
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
     if not empresa:
         return jsonify({'error': 'Empresa no encontrada'}), 400
     if not _user_can_access(user, empresa_id):
@@ -455,19 +396,17 @@ def procesar():
     if not os.path.exists(path):
         return jsonify({'error': 'No hay archivo cargado para esta empresa'}), 400
 
-    wsaa_url, wsfe_wsdl = _empresa_urls(empresa)
-
     cert_path = empresa.get('cert', '')
     key_path  = empresa.get('key', '')
     if not os.path.isfile(cert_path):
-        return jsonify({'error': f'Certificado no encontrado: {cert_path}\nAndá a Admin y actualizá la ruta del certificado (.crt)'}), 400
+        return jsonify({'error': f'Certificado no encontrado: {cert_path}'}), 400
     if not os.path.isfile(key_path):
-        return jsonify({'error': f'Clave privada no encontrada: {key_path}\nAndá a Admin y actualizá la ruta de la clave (.key)'}), 400
+        return jsonify({'error': f'Clave privada no encontrada: {key_path}'}), 400
+
+    wsaa_url, wsfe_wsdl = _empresa_urls(empresa)
 
     try:
-        token, sign = wsaa.get_ticket(
-            'wsfe', cert_path, key_path, wsaa_url, empresa['cuit']
-        )
+        token, sign = wsaa.get_ticket('wsfe', cert_path, key_path, wsaa_url, empresa['cuit'])
         auth   = {'Token': token, 'Sign': sign, 'Cuit': int(empresa['cuit'])}
         client = wsfe.get_client(wsfe_wsdl)
 
@@ -503,8 +442,7 @@ def procesar():
 
                 if det.Resultado == 'A':
                     resultados.append({
-                        'fila': idx + 2, 'nro': nro,
-                        'resultado': 'APROBADO',
+                        'fila': idx + 2, 'nro': nro, 'resultado': 'APROBADO',
                         'cae': det.CAE, 'vto_cae': str(det.CAEFchVto), 'obs': '',
                     })
                 else:
@@ -512,15 +450,13 @@ def procesar():
                     if det.Observaciones:
                         obs = '; '.join(o.Msg for o in det.Observaciones.Obs)
                     resultados.append({
-                        'fila': idx + 2, 'nro': nro,
-                        'resultado': 'RECHAZADO',
+                        'fila': idx + 2, 'nro': nro, 'resultado': 'RECHAZADO',
                         'cae': '', 'vto_cae': '', 'obs': obs,
                     })
 
             except Exception as e:
                 resultados.append({
-                    'fila': idx + 2, 'nro': 0,
-                    'resultado': 'ERROR',
+                    'fila': idx + 2, 'nro': 0, 'resultado': 'ERROR',
                     'cae': '', 'vto_cae': '', 'obs': str(e),
                 })
 
@@ -538,12 +474,11 @@ def procesar():
         })
 
     except Exception as e:
-        tb = traceback.format_exc()
-        print(f"\n=== ERROR /procesar ===\n{tb}\n======================\n")
+        print(f"\n=== ERROR /procesar ===\n{traceback.format_exc()}\n=====\n")
         return jsonify({'error': str(e)}), 500
 
 
-def _guardar_resultado(src_path, dest_path, resultados):
+def _guardar_resultado(src_path: str, dest_path: str, resultados: list):
     wb = load_workbook(src_path)
     ws = wb.active
     lc = ws.max_column + 1
@@ -556,13 +491,14 @@ def _guardar_resultado(src_path, dest_path, resultados):
     amarillo = PatternFill(fill_type='solid', fgColor='FFEB9C')
 
     for r in resultados:
-        rn = r['fila']
+        rn   = r['fila']
+        fill = verde if r['resultado'] == 'APROBADO' else (
+               rojo  if r['resultado'] == 'RECHAZADO' else amarillo)
         ws.cell(rn, lc,     r['nro'])
         ws.cell(rn, lc + 1, r['resultado'])
         ws.cell(rn, lc + 2, r['cae'])
         ws.cell(rn, lc + 3, r['vto_cae'])
         ws.cell(rn, lc + 4, r['obs'])
-        fill = verde if r['resultado'] == 'APROBADO' else (rojo if r['resultado'] == 'RECHAZADO' else amarillo)
         for col in range(1, lc + 5):
             ws.cell(rn, col).fill = fill
 
@@ -574,7 +510,7 @@ def _guardar_resultado(src_path, dest_path, resultados):
 def descargar():
     user       = _get_current_user()
     empresa_id = request.args.get('empresa_id', '').strip()
-    empresa    = _get_empresa(empresa_id)
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
     if not empresa:
         return 'Empresa no encontrada', 404
     if not _user_can_access(user, empresa_id):
@@ -582,25 +518,18 @@ def descargar():
     path = _resultado_path(empresa_id)
     if not os.path.exists(path):
         return 'No hay resultado disponible', 404
-    nombre_archivo = f'facturas_{empresa["cuit"]}_resultado.xlsx'
-    return send_file(path, as_attachment=True, download_name=nombre_archivo)
+    return send_file(path, as_attachment=True,
+                     download_name=f'facturas_{empresa["cuit"]}_resultado.xlsx')
 
 
 @app.route('/plantilla')
 @login_required
 def plantilla():
     df = pd.DataFrame([{
-        'punto_venta': 6,
-        'tipo_cbte':   11,
-        'concepto':    2,
-        'doc_tipo':    99,
-        'doc_nro':     0,
-        'razon_social': 'Consumidor Final',
-        'fecha':       datetime.today().strftime('%Y-%m-%d'),
-        'imp_neto':    1000.00,
-        'alicuota':    0,
-        'imp_iva':     0.00,
-        'imp_total':   1000.00,
+        'punto_venta': 6, 'tipo_cbte': 11, 'concepto': 2,
+        'doc_tipo': 99, 'doc_nro': 0, 'razon_social': 'Consumidor Final',
+        'fecha': datetime.today().strftime('%Y-%m-%d'),
+        'imp_neto': 1000.00, 'alicuota': 0, 'imp_iva': 0.00, 'imp_total': 1000.00,
     }])
     out = io.BytesIO()
     with pd.ExcelWriter(out, engine='openpyxl') as w:
@@ -610,13 +539,13 @@ def plantilla():
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
-# ---------- generador de PDF -------------------------------------------------
+# ---------- PDF ---------------------------------------------------------------
 
 @app.route('/pdf/<empresa_id>/<int:fila>')
 @login_required
 def pdf_desde_resultado(empresa_id, fila):
     user    = _get_current_user()
-    empresa = _get_empresa(empresa_id)
+    empresa = EmpresaRepository.get_by_id(empresa_id)
     if not empresa:
         return 'Empresa no encontrada', 404
     if not _user_can_access(user, empresa_id):
@@ -629,25 +558,13 @@ def pdf_desde_resultado(empresa_id, fila):
     try:
         df = pd.read_excel(path)
         df.columns = [c.lower().strip().replace(' ', '_') for c in df.columns]
-
         idx = fila - 2
         if idx < 0 or idx >= len(df):
             return f'Fila {fila} no encontrada', 404
 
         row      = df.iloc[idx].to_dict()
-        registro = {
-            'punto_venta': row.get('punto_venta', 0),
-            'tipo_cbte':   row.get('tipo_cbte', 11),
-            'concepto':    row.get('concepto', 2),
-            'doc_tipo':    row.get('doc_tipo', 99),
-            'doc_nro':     row.get('doc_nro', 0),
-            'razon_social':row.get('razon_social', ''),
-            'fecha':       str(row.get('fecha', '')),
-            'imp_neto':    row.get('imp_neto', 0),
-            'alicuota':    row.get('alicuota', 0),
-            'imp_iva':     row.get('imp_iva', 0),
-            'imp_total':   row.get('imp_total', 0),
-        }
+        registro = {c: row.get(c, '') for c in COLUMNAS}
+        registro['fecha'] = str(registro['fecha'])
         resultado = {
             'nro':     int(row.get('nro_cbte', 0)),
             'cae':     str(row.get('cae', '')),
@@ -657,9 +574,9 @@ def pdf_desde_resultado(empresa_id, fila):
         pdf_buf = factura_pdf.generar_pdf(empresa, registro, resultado)
         pv      = int(registro['punto_venta'])
         nro     = int(resultado['nro'])
-        nombre  = f"factura_{pv:04d}-{nro:08d}.pdf"
         return send_file(pdf_buf, as_attachment=False,
-                         download_name=nombre, mimetype='application/pdf')
+                         download_name=f'factura_{pv:04d}-{nro:08d}.pdf',
+                         mimetype='application/pdf')
     except Exception as e:
         return f'Error al generar PDF: {e}', 500
 
@@ -670,7 +587,7 @@ def imprimir():
     user       = _get_current_user()
     data       = request.get_json(force=True)
     empresa_id = (data.get('empresa_id') or '').strip()
-    empresa    = _get_empresa(empresa_id)
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
     if not empresa:
         return jsonify({'error': 'Empresa no encontrada'}), 400
     if not _user_can_access(user, empresa_id):
@@ -683,11 +600,11 @@ def imprimir():
 
     try:
         pdf_buf = factura_pdf.generar_pdf(empresa, registro, resultado)
-        nro     = int(resultado.get('nro', 0))
         pv      = int(registro.get('punto_venta', 0))
-        nombre  = f"factura_{pv:04d}-{nro:08d}.pdf"
+        nro     = int(resultado.get('nro', 0))
         return send_file(pdf_buf, as_attachment=False,
-                         download_name=nombre, mimetype='application/pdf')
+                         download_name=f'factura_{pv:04d}-{nro:08d}.pdf',
+                         mimetype='application/pdf')
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -718,10 +635,8 @@ def generar_csr():
         return jsonify({'error': str(e)}), 500
 
     try:
-        r1 = subprocess.run(
-            [openssl, 'genrsa', '-out', key_path, '2048'],
-            capture_output=True
-        )
+        r1 = subprocess.run([openssl, 'genrsa', '-out', key_path, '2048'],
+                            capture_output=True)
         if r1.returncode != 0:
             raise Exception(r1.stderr.decode('utf-8', errors='replace'))
 
@@ -729,10 +644,9 @@ def generar_csr():
         if email:
             subject += f'/emailAddress={email}'
 
-        r2 = subprocess.run(
-            [openssl, 'req', '-new', '-key', key_path, '-out', csr_path, '-subj', subject],
-            capture_output=True
-        )
+        r2 = subprocess.run([openssl, 'req', '-new', '-key', key_path,
+                             '-out', csr_path, '-subj', subject],
+                            capture_output=True)
         if r2.returncode != 0:
             raise Exception(r2.stderr.decode('utf-8', errors='replace'))
 
@@ -741,7 +655,6 @@ def generar_csr():
             zf.write(key_path, f'{cuit}_clave.key')
             zf.write(csr_path, f'{cuit}.csr')
         buf.seek(0)
-
         return send_file(buf, as_attachment=True,
                          download_name=f'certificado_afip_{cuit}.zip',
                          mimetype='application/zip')
@@ -749,15 +662,14 @@ def generar_csr():
         return jsonify({'error': str(e)}), 500
 
 
-# ---------- página de administración -----------------------------------------
+# ---------- administración ---------------------------------------------------
 
 @app.route('/admin')
 @admin_required
 def admin():
     user     = _get_current_user()
-    empresas = _load_empresas()
-    usuarios = [{k: v for k, v in u.items() if k != 'password_hash'}
-                for u in _load_usuarios()]
+    empresas = EmpresaRepository.get_all()
+    usuarios = UsuarioRepository.get_all_public()
     return render_template('admin.html', empresas=empresas, usuarios=usuarios,
                            certs_dir=CERTS, current_user=user)
 
