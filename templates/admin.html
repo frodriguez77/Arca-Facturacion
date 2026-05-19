@@ -13,7 +13,8 @@
     .nav-tabs .nav-link { color: #495057; font-weight: 500; }
     .nav-tabs .nav-link.active { color: #1d4ed8; font-weight: 600; }
     .tab-content { background: #fff; border: 1px solid #dee2e6; border-top: none;
-                   border-radius: 0 0 12px 12px; padding: 2rem; box-shadow:0 2px 10px rgba(0,0,0,.08); }
+                   border-radius: 0 0 12px 12px; padding: 2rem;
+                   box-shadow: 0 2px 10px rgba(0,0,0,.08); }
     .nav-tabs { border-bottom: none; }
     .nav-tabs .nav-link { border-radius: 10px 10px 0 0; }
   </style>
@@ -42,17 +43,17 @@
   <!-- Pestañas -->
   <ul class="nav nav-tabs" id="adminTabs" role="tablist">
     <li class="nav-item" role="presentation">
-      <button class="nav-link active" id="tab-csr-btn" data-bs-toggle="tab"
-              data-bs-target="#tab-csr" type="button" role="tab">
-        <i class="bi bi-shield-lock text-success"></i>
-        <span class="ms-1">1. Generar CSR</span>
+      <button class="nav-link active" id="tab-empresa-btn" data-bs-toggle="tab"
+              data-bs-target="#tab-empresa" type="button" role="tab">
+        <i class="bi bi-building text-primary"></i>
+        <span class="ms-1">1. Empresas</span>
       </button>
     </li>
     <li class="nav-item" role="presentation">
-      <button class="nav-link" id="tab-empresa-btn" data-bs-toggle="tab"
-              data-bs-target="#tab-empresa" type="button" role="tab">
-        <i class="bi bi-building text-primary"></i>
-        <span class="ms-1">2. Empresas</span>
+      <button class="nav-link" id="tab-csr-btn" data-bs-toggle="tab"
+              data-bs-target="#tab-csr" type="button" role="tab">
+        <i class="bi bi-shield-lock text-success"></i>
+        <span class="ms-1">2. Generar CSR</span>
       </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -66,75 +67,9 @@
 
   <div class="tab-content" id="adminTabsContent">
 
-    <!-- ===== TAB 1: Generar CSR ===== -->
-    <div class="tab-pane fade show active" id="tab-csr" role="tabpanel">
-      <h5 class="mb-1"><i class="bi bi-shield-lock text-success"></i> Generar clave y CSR para AFIP</h5>
-      <p class="text-muted small mb-4">
-        Completá los datos y el sistema generará la clave privada (.key) y la solicitud de certificado (.csr)
-        listas para presentar en AFIP. Vas a descargar un ZIP con ambos archivos.
-      </p>
+    <!-- ===== TAB 1: Empresas ===== -->
+    <div class="tab-pane fade show active" id="tab-empresa" role="tabpanel">
 
-      <div id="csr-error" class="alert alert-danger d-none"></div>
-
-      <form id="form-csr" novalidate>
-        <div class="row g-3">
-          <div class="col-12 col-md-6">
-            <label class="form-label fw-semibold">CUIT <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" id="csr-cuit"
-                   placeholder="20123456789" maxlength="11" required>
-            <div class="form-text">11 dígitos, sin guiones.</div>
-          </div>
-          <div class="col-12 col-md-6">
-            <label class="form-label fw-semibold">Nombre / Razón social <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" id="csr-nombre"
-                   placeholder="Mi Empresa SRL" required>
-          </div>
-          <div class="col-12 col-md-6">
-            <label class="form-label fw-semibold">Email <span class="text-muted fw-normal">(opcional)</span></label>
-            <input type="email" class="form-control" id="csr-email"
-                   placeholder="admin@miempresa.com">
-          </div>
-        </div>
-
-        <button type="submit" class="btn btn-success mt-4" id="btn-csr">
-          <i class="bi bi-key-fill"></i> Generar y descargar ZIP
-        </button>
-      </form>
-
-      <div class="alert alert-info mt-4 mb-0">
-        <strong>Pasos después de descargar el ZIP:</strong>
-        <ol class="mb-0 mt-2 small">
-          <li>
-            El ZIP contiene dos archivos. El sistema ya los guardó automáticamente en una subcarpeta por CUIT:
-            <div class="mt-1 mb-1">
-              <code class="d-block p-2 bg-white rounded border">{{ certs_dir }}\<em>CUIT</em>\</code>
-            </div>
-            Ejemplo: <code>{{ certs_dir }}\20267894362\</code>
-          </li>
-          <li>Ingresá a <strong>ARCA</strong> con clave fiscal del titular del CUIT.</li>
-          <li>Ir a <em>Administración de Certificados Digitales</em> → <em>Agregar alias</em>.</li>
-          <li>Subí el archivo <code>CUIT.csr</code> y completá el proceso.</li>
-          <li>
-            Descargá el <code>.crt</code> que te entrega AFIP y guardalo en la misma carpeta:
-            <div class="mt-1 mb-1">
-              <code class="d-block p-2 bg-white rounded border">{{ certs_dir }}\<em>CUIT</em>\</code>
-            </div>
-          </li>
-          <li>
-            Andá a la pestaña <strong>2. Empresas</strong> y usá estas rutas:<br>
-            <span class="text-muted">Certificado:</span>
-            <code>{{ certs_dir }}\CUIT\CUIT.crt</code><br>
-            <span class="text-muted">Clave privada:</span>
-            <code>{{ certs_dir }}\CUIT\CUIT_clave.key</code>
-          </li>
-        </ol>
-      </div>
-    </div>
-
-    <!-- ===== TAB 2: Empresas ===== -->
-    <div class="tab-pane fade" id="tab-empresa" role="tabpanel">
-
-      <!-- Lista de empresas -->
       <h5 class="mb-3">Empresas configuradas</h5>
       <div id="lista-empresas" class="mb-4">
         {% if empresas %}
@@ -184,7 +119,6 @@
 
       <hr>
 
-      <!-- Formulario agregar / editar empresa -->
       <h5 class="mb-4" id="form-titulo">
         <i class="bi bi-plus-circle text-primary"></i> Agregar empresa
       </h5>
@@ -200,25 +134,29 @@
           </div>
           <div class="col-12 col-md-6">
             <label class="form-label fw-semibold">CUIT <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" id="f-cuit" placeholder="20123456789 (11 dígitos, sin guiones)" maxlength="11" required>
+            <input type="text" class="form-control" id="f-cuit"
+                   placeholder="20123456789 (11 dígitos, sin guiones)"
+                   maxlength="11" required>
             <div class="form-text">Solo números, sin guiones ni espacios.</div>
           </div>
           <div class="col-12">
             <label class="form-label fw-semibold">Ruta del certificado (.crt) <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" id="f-cert"
-                   placeholder="{{ certs_dir }}\CUIT\CUIT.crt" required>
-            <div class="form-text">Ej: <code>{{ certs_dir }}\20267894362\20267894362.crt</code></div>
+            <input type="text" class="form-control" id="f-cert" required
+                   placeholder="{{ certs_dir }}\CUIT\CUIT.crt">
+            <div class="form-text">Se completa automáticamente al ingresar el CUIT.</div>
           </div>
           <div class="col-12">
             <label class="form-label fw-semibold">Ruta de la clave privada (.key) <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" id="f-key"
-                   placeholder="{{ certs_dir }}\CUIT\CUIT_clave.key" required>
-            <div class="form-text">Ej: <code>{{ certs_dir }}\20267894362\20267894362_clave.key</code></div>
+            <input type="text" class="form-control" id="f-key" required
+                   placeholder="{{ certs_dir }}\CUIT\CUIT_clave.key">
+            <div class="form-text">Se completa automáticamente al ingresar el CUIT.</div>
           </div>
         </div>
 
         <hr class="my-3">
-        <p class="text-muted small mb-3"><i class="bi bi-file-earmark-pdf"></i> Datos opcionales para el PDF de la factura</p>
+        <p class="text-muted small mb-3">
+          <i class="bi bi-file-earmark-pdf"></i> Datos opcionales para el PDF de la factura
+        </p>
 
         <div class="row g-3 mb-3">
           <div class="col-12 col-md-6">
@@ -262,6 +200,57 @@
           </button>
         </div>
       </form>
+    </div>
+
+    <!-- ===== TAB 2: Generar CSR ===== -->
+    <div class="tab-pane fade" id="tab-csr" role="tabpanel">
+      <h5 class="mb-1"><i class="bi bi-shield-lock text-success"></i> Generar clave y CSR para AFIP</h5>
+      <p class="text-muted small mb-4">
+        Completá los datos y el sistema generará la clave privada (.key) y la solicitud de
+        certificado (.csr) listas para presentar en AFIP. Vas a descargar un ZIP con ambos archivos.
+      </p>
+
+      <div id="csr-error" class="alert alert-danger d-none"></div>
+
+      <form id="form-csr" novalidate>
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">CUIT <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="csr-cuit"
+                   placeholder="20123456789" maxlength="11" required>
+            <div class="form-text">11 dígitos, sin guiones.</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">Nombre / Razón social <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="csr-nombre"
+                   placeholder="Mi Empresa SRL" required>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">Email <span class="text-muted fw-normal">(opcional)</span></label>
+            <input type="email" class="form-control" id="csr-email"
+                   placeholder="admin@miempresa.com">
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-success mt-4" id="btn-csr">
+          <i class="bi bi-key-fill"></i> Generar y descargar ZIP
+        </button>
+      </form>
+
+      <div class="alert alert-info mt-4 mb-0">
+        <strong>Pasos después de descargar el ZIP:</strong>
+        <ol class="mb-0 mt-2 small">
+          <li>
+            Los archivos quedan guardados automáticamente en:
+            <code class="d-block p-2 bg-white rounded border mt-1 mb-1">{{ certs_dir }}\<em>CUIT</em>\</code>
+          </li>
+          <li>Ingresá a <strong>ARCA</strong> con clave fiscal del titular del CUIT.</li>
+          <li>Ir a <em>Administración de Certificados Digitales</em> → <em>Agregar alias</em>.</li>
+          <li>Subí el archivo <code>CUIT.csr</code> y completá el proceso.</li>
+          <li>Descargá el <code>.crt</code> que te entrega AFIP y guardalo en la misma carpeta.</li>
+          <li>Las rutas del certificado ya están precargadas en la pestaña <strong>1. Empresas</strong>.</li>
+        </ol>
+      </div>
     </div>
 
     <!-- ===== TAB 3: Usuarios ===== -->
@@ -387,17 +376,42 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+// Carpeta base de certificados (viene del servidor)
+const CERTS_DIR = {{ certs_dir | tojson }};
 
-// ===== EMPRESAS =============================================================
+// ===== AUTOCOMPLETAR RUTAS AL INGRESAR CUIT ==================================
+document.getElementById('f-cuit').addEventListener('input', function () {
+  const cuit = this.value.trim();
+  const certField = document.getElementById('f-cert');
+  const keyField  = document.getElementById('f-key');
+  // Solo autocompletar si el campo está vacío o fue autocompletado antes
+  if (cuit.length === 11) {
+    const sep = CERTS_DIR.includes('/') ? '/' : '\\';
+    certField.value = `${CERTS_DIR}${sep}${cuit}${sep}${cuit}.crt`;
+    keyField.value  = `${CERTS_DIR}${sep}${cuit}${sep}${cuit}_clave.key`;
+  } else if (certField.dataset.auto !== 'false') {
+    certField.value = '';
+    keyField.value  = '';
+  }
+  certField.dataset.auto = 'true';
+  keyField.dataset.auto  = 'true';
+});
 
-document.querySelectorAll('.btn-editar').forEach(btn => {
-  btn.addEventListener('click', () => {
-    editarEmpresa(JSON.parse(btn.dataset.empresa));
+// Si el usuario edita manualmente las rutas, no volver a autocompletar
+['f-cert', 'f-key'].forEach(id => {
+  document.getElementById(id).addEventListener('input', function () {
+    this.dataset.auto = 'false';
   });
 });
 
+
+// ===== EMPRESAS ==============================================================
+
+document.querySelectorAll('.btn-editar').forEach(btn => {
+  btn.addEventListener('click', () => editarEmpresa(JSON.parse(btn.dataset.empresa)));
+});
+
 function editarEmpresa(e) {
-  // Cambiar a pestaña Empresas
   bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-empresa-btn')).show();
 
   document.getElementById('f-id').value            = e.id            || '';
@@ -412,6 +426,10 @@ function editarEmpresa(e) {
   document.getElementById('f-ing-brutos').value    = e.ing_brutos    || '';
   document.getElementById('f-inicio-act').value    = e.inicio_actividades || '';
 
+  // Marcar rutas como manuales para no pisar al editar CUIT
+  document.getElementById('f-cert').dataset.auto = 'false';
+  document.getElementById('f-key').dataset.auto  = 'false';
+
   document.getElementById('form-titulo').innerHTML =
     '<i class="bi bi-pencil text-primary"></i> Editar empresa';
   document.getElementById('btn-guardar').innerHTML =
@@ -424,7 +442,11 @@ function editarEmpresa(e) {
 function limpiarForm() {
   ['f-id','f-nombre','f-cuit','f-cert','f-key',
    'f-domicilio','f-telefono','f-localidad','f-ing-brutos','f-inicio-act']
-    .forEach(id => document.getElementById(id).value = '');
+    .forEach(id => {
+      const el = document.getElementById(id);
+      el.value = '';
+      el.dataset.auto = 'true';
+    });
   document.getElementById('f-homo').checked = false;
   document.getElementById('form-titulo').innerHTML =
     '<i class="bi bi-plus-circle text-primary"></i> Agregar empresa';
@@ -502,12 +524,10 @@ function escHtml(s) {
 }
 
 
-// ===== USUARIOS =============================================================
+// ===== USUARIOS ==============================================================
 
 document.querySelectorAll('.btn-editar-usuario').forEach(btn => {
-  btn.addEventListener('click', () => {
-    editarUsuario(JSON.parse(btn.dataset.usuario));
-  });
+  btn.addEventListener('click', () => editarUsuario(JSON.parse(btn.dataset.usuario)));
 });
 
 function toggleEmpresasUsuario() {
@@ -606,7 +626,7 @@ async function eliminarUsuario(id, nombre) {
 }
 
 
-// ===== GENERADOR DE CSR =====================================================
+// ===== GENERADOR DE CSR ======================================================
 
 document.getElementById('form-csr').addEventListener('submit', async e => {
   e.preventDefault();
