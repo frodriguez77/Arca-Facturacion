@@ -237,20 +237,131 @@
         </button>
       </form>
 
-      <div class="alert alert-info mt-4 mb-0">
-        <strong>Pasos después de descargar el ZIP:</strong>
-        <ol class="mb-0 mt-2 small">
-          <li>
-            Los archivos quedan guardados automáticamente en:
-            <code class="d-block p-2 bg-white rounded border mt-1 mb-1">{{ certs_dir }}\<em>CUIT</em>\</code>
-          </li>
-          <li>Ingresá a <strong>ARCA</strong> con clave fiscal del titular del CUIT.</li>
-          <li>Ir a <em>Administración de Certificados Digitales</em> → <em>Agregar alias</em>.</li>
-          <li>Subí el archivo <code>CUIT.csr</code> y completá el proceso.</li>
-          <li>Descargá el <code>.crt</code> que te entrega AFIP y guardalo en la misma carpeta.</li>
-          <li>Las rutas del certificado ya están precargadas en la pestaña <strong>1. Empresas</strong>.</li>
-        </ol>
-      </div>
+      <div class="accordion mt-4" id="acordeonCSR">
+
+        <!-- Paso 1 -->
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#paso1">
+              <span class="badge bg-primary me-2">1</span> Descargar y guardar los archivos
+            </button>
+          </h2>
+          <div id="paso1" class="accordion-collapse collapse" data-bs-parent="#acordeonCSR">
+            <div class="accordion-body small">
+              Después de hacer clic en <strong>Generar y descargar ZIP</strong>, los archivos quedan
+              guardados automáticamente en:
+              <code class="d-block p-2 bg-light rounded border mt-2 mb-2">{{ certs_dir }}\<em>CUIT</em>\</code>
+              El ZIP contiene:
+              <ul class="mb-0 mt-1">
+                <li><code>CUIT_clave.key</code> — tu clave privada. <strong>No la compartas.</strong></li>
+                <li><code>CUIT.csr</code> — la solicitud de certificado para presentar en AFIP.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Paso 2 -->
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#paso2">
+              <span class="badge bg-primary me-2">2</span> Agregar el certificado en ARCA
+            </button>
+          </h2>
+          <div id="paso2" class="accordion-collapse collapse" data-bs-parent="#acordeonCSR">
+            <div class="accordion-body small">
+              <ol class="mb-0">
+                <li>Ingresá a <strong>ARCA (afip.gob.ar)</strong> con la clave fiscal del titular del CUIT.</li>
+                <li>Buscá el servicio <strong>"Administración de Certificados Digitales"</strong>.</li>
+                <li>Hacé clic en <strong>"Agregar alias"</strong> o <strong>"Nuevo certificado"</strong>.</li>
+                <li>Subí el archivo <code>CUIT.csr</code> que descargaste en el paso anterior.</li>
+                <li>Completá el alias (puede ser cualquier nombre, ej: <em>FacturacionWeb</em>).</li>
+                <li>AFIP generará y te mostrará el archivo <code>.crt</code> para descargar.</li>
+                <li>
+                  Guardá ese <code>.crt</code> en la carpeta:
+                  <code class="d-block p-2 bg-light rounded border mt-1 mb-1">{{ certs_dir }}\<em>CUIT</em>\</code>
+                </li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <!-- Paso 3 -->
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#paso3">
+              <span class="badge bg-primary me-2">3</span> Adherir el servicio de Factura Electrónica
+            </button>
+          </h2>
+          <div id="paso3" class="accordion-collapse collapse" data-bs-parent="#acordeonCSR">
+            <div class="accordion-body small">
+              <ol class="mb-0">
+                <li>Seguí en ARCA con la clave fiscal del titular del CUIT.</li>
+                <li>Ingresá al servicio <strong>"Factura Electrónica"</strong>.</li>
+                <li>Si no lo tenés habilitado, buscá en <em>Administrador de Relaciones de Clave Fiscal</em>
+                    y agregá el servicio <strong>"Factura Electrónica"</strong> para ese CUIT.</li>
+                <li>Dentro de Factura Electrónica, buscá la opción
+                    <strong>"Adherir servicio"</strong> o <strong>"Certificados"</strong>.</li>
+                <li>Asociá el certificado digital (el alias que creaste en el Paso 2)
+                    al servicio de Factura Electrónica.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <!-- Paso 4 -->
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#paso4">
+              <span class="badge bg-primary me-2">4</span> Crear un punto de venta Web Service
+            </button>
+          </h2>
+          <div id="paso4" class="accordion-collapse collapse" data-bs-parent="#acordeonCSR">
+            <div class="accordion-body small">
+              <ol class="mb-0">
+                <li>Dentro de <strong>Factura Electrónica</strong>, ingresá a
+                    <strong>"Puntos de Venta"</strong>.</li>
+                <li>Hacé clic en <strong>"Agregar"</strong> o <strong>"Nuevo punto de venta"</strong>.</li>
+                <li>Asigná un número de punto de venta (ej: <em>3</em>, <em>5</em>, etc.).</li>
+                <li>En el campo <strong>Sistema</strong>, seleccioná:
+                  <div class="alert alert-warning py-1 px-2 mt-1 mb-1 d-inline-block">
+                    <strong>WSFEV1 — Facturación de Web Service Electrónica</strong>
+                  </div>
+                </li>
+                <li>Guardá el punto de venta.</li>
+                <li>Anotá el número de punto de venta — es el que vas a usar en el Excel
+                    en la columna <code>punto_venta</code>.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <!-- Paso 5 -->
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#paso5">
+              <span class="badge bg-success me-2">5</span> Configurar la empresa en el sistema
+            </button>
+          </h2>
+          <div id="paso5" class="accordion-collapse collapse" data-bs-parent="#acordeonCSR">
+            <div class="accordion-body small">
+              <ol class="mb-0">
+                <li>Andá a la pestaña <strong>1. Empresas</strong>.</li>
+                <li>Ingresá el CUIT — las rutas del certificado y la clave se completan solas.</li>
+                <li>Verificá que las rutas apunten al <code>.crt</code> descargado de AFIP y al
+                    <code>.key</code> generado en el Paso 1.</li>
+                <li>Completá el nombre y los datos opcionales (domicilio, localidad, etc.).</li>
+                <li>Guardá la empresa. ¡Ya podés empezar a facturar!</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /accordion -->
     </div>
 
     <!-- ===== TAB 3: Usuarios ===== -->
