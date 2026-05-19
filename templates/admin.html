@@ -117,16 +117,26 @@
         {% endif %}
       </div>
 
-      <hr>
+      <!-- Botón para desplegar formulario empresa -->
+      <div class="d-flex justify-content-end mb-2">
+        <button class="btn btn-primary btn-sm" type="button"
+                data-bs-toggle="collapse" data-bs-target="#collapse-empresa"
+                id="btn-toggle-empresa">
+          <i class="bi bi-plus-circle"></i> Agregar empresa
+        </button>
+      </div>
 
-      <h5 class="mb-4" id="form-titulo">
-        <i class="bi bi-plus-circle text-primary"></i> Agregar empresa
-      </h5>
+      <div class="collapse" id="collapse-empresa">
+        <div class="border rounded p-4 bg-light mb-3">
 
-      <div id="form-error" class="alert alert-danger d-none"></div>
-      <div id="form-ok"    class="alert alert-success d-none"></div>
+          <h5 class="mb-4" id="form-titulo">
+            <i class="bi bi-plus-circle text-primary"></i> Agregar empresa
+          </h5>
 
-      <form id="form-empresa" novalidate>
+          <div id="form-error" class="alert alert-danger d-none"></div>
+          <div id="form-ok"    class="alert alert-success d-none"></div>
+
+          <form id="form-empresa" novalidate>
         <div class="row g-3 mb-3">
           <div class="col-12 col-md-6">
             <label class="form-label fw-semibold">Nombre / Razón social <span class="text-danger">*</span></label>
@@ -190,17 +200,19 @@
           </div>
         </div>
 
-        <input type="hidden" id="f-id">
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-primary" id="btn-guardar">
-            <i class="bi bi-floppy"></i> Guardar empresa
-          </button>
-          <button type="button" class="btn btn-outline-secondary" onclick="limpiarForm()">
-            Cancelar
-          </button>
-        </div>
-      </form>
-    </div>
+          <input type="hidden" id="f-id">
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary" id="btn-guardar">
+              <i class="bi bi-floppy"></i> Guardar empresa
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="limpiarForm()">
+              Cancelar
+            </button>
+          </div>
+        </form>
+        </div><!-- /border -->
+      </div><!-- /collapse -->
+    </div><!-- /tab-empresa -->
 
     <!-- ===== TAB 2: Generar CSR ===== -->
     <div class="tab-pane fade" id="tab-csr" role="tabpanel">
@@ -421,15 +433,25 @@
         </table>
       </div>
 
-      <hr>
+      <!-- Botón para desplegar formulario usuario -->
+      <div class="d-flex justify-content-end mb-2">
+        <button class="btn btn-success btn-sm" type="button"
+                data-bs-toggle="collapse" data-bs-target="#collapse-usuario"
+                id="btn-toggle-usuario">
+          <i class="bi bi-person-plus"></i> Agregar usuario
+        </button>
+      </div>
 
-      <h6 class="mb-3" id="form-usuario-titulo">
-        <i class="bi bi-person-plus text-success"></i> Agregar usuario
-      </h6>
-      <div id="usuario-error" class="alert alert-danger d-none"></div>
-      <div id="usuario-ok"    class="alert alert-success d-none"></div>
+      <div class="collapse" id="collapse-usuario">
+        <div class="border rounded p-4 bg-light mb-3">
 
-      <form id="form-usuario" novalidate>
+          <h6 class="mb-3" id="form-usuario-titulo">
+            <i class="bi bi-person-plus text-success"></i> Agregar usuario
+          </h6>
+          <div id="usuario-error" class="alert alert-danger d-none"></div>
+          <div id="usuario-ok"    class="alert alert-success d-none"></div>
+
+          <form id="form-usuario" novalidate>
         <div class="row g-3 mb-3">
           <div class="col-12 col-md-6">
             <label class="form-label fw-semibold">Nombre completo</label>
@@ -470,17 +492,19 @@
           <div class="form-text">Solo aplica para usuarios con rol "Usuario".</div>
         </div>
 
-        <input type="hidden" id="u-id">
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-success" id="btn-guardar-usuario">
-            <i class="bi bi-floppy"></i> Guardar usuario
-          </button>
-          <button type="button" class="btn btn-outline-secondary" onclick="limpiarFormUsuario()">
-            Cancelar
-          </button>
-        </div>
-      </form>
-    </div>
+          <input type="hidden" id="u-id">
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-success" id="btn-guardar-usuario">
+              <i class="bi bi-floppy"></i> Guardar usuario
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="limpiarFormUsuario()">
+              Cancelar
+            </button>
+          </div>
+        </form>
+        </div><!-- /border -->
+      </div><!-- /collapse -->
+    </div><!-- /tab-admin -->
 
   </div><!-- /tab-content -->
 </div><!-- /container -->
@@ -489,6 +513,32 @@
 <script>
 // Carpeta base de certificados (viene del servidor)
 const CERTS_DIR = {{ certs_dir | tojson }};
+
+// ===== COLAPSO EMPRESA — limpiar al abrir y enfocar primer campo ==============
+document.getElementById('collapse-empresa').addEventListener('show.bs.collapse', () => {
+  if (!document.getElementById('f-id').value) limpiarForm();
+});
+document.getElementById('collapse-empresa').addEventListener('shown.bs.collapse', () => {
+  const campo = document.getElementById('f-nombre');
+  campo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  campo.focus();
+});
+document.getElementById('collapse-empresa').addEventListener('hide.bs.collapse', () => {
+  limpiarForm();
+});
+
+// ===== COLAPSO USUARIO — limpiar al abrir y enfocar primer campo ==============
+document.getElementById('collapse-usuario').addEventListener('show.bs.collapse', () => {
+  if (!document.getElementById('u-id').value) limpiarFormUsuario();
+});
+document.getElementById('collapse-usuario').addEventListener('shown.bs.collapse', () => {
+  const campo = document.getElementById('u-nombre');
+  campo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  campo.focus();
+});
+document.getElementById('collapse-usuario').addEventListener('hide.bs.collapse', () => {
+  limpiarFormUsuario();
+});
 
 // ===== AUTOCOMPLETAR RUTAS AL INGRESAR CUIT ==================================
 document.getElementById('f-cuit').addEventListener('input', function () {
@@ -524,6 +574,11 @@ document.querySelectorAll('.btn-editar').forEach(btn => {
 
 function editarEmpresa(e) {
   bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-empresa-btn')).show();
+
+  // Abrir el collapse si está cerrado
+  bootstrap.Collapse.getOrCreateInstance(document.getElementById('collapse-empresa')).show();
+  document.getElementById('btn-toggle-empresa').innerHTML =
+    '<i class="bi bi-pencil"></i> Editar empresa';
 
   document.getElementById('f-id').value            = e.id            || '';
   document.getElementById('f-nombre').value        = e.nombre        || '';
@@ -563,6 +618,8 @@ function limpiarForm() {
     '<i class="bi bi-plus-circle text-primary"></i> Agregar empresa';
   document.getElementById('btn-guardar').innerHTML =
     '<i class="bi bi-floppy"></i> Guardar empresa';
+  document.getElementById('btn-toggle-empresa').innerHTML =
+    '<i class="bi bi-plus-circle"></i> Agregar empresa';
   clearAlerts();
 }
 
@@ -647,6 +704,11 @@ function toggleEmpresasUsuario() {
 }
 
 function editarUsuario(u) {
+  // Abrir el collapse si está cerrado
+  bootstrap.Collapse.getOrCreateInstance(document.getElementById('collapse-usuario')).show();
+  document.getElementById('btn-toggle-usuario').innerHTML =
+    '<i class="bi bi-pencil"></i> Editar usuario';
+
   document.getElementById('u-id').value       = u.id       || '';
   document.getElementById('u-username').value = u.username || '';
   document.getElementById('u-nombre').value   = u.nombre   || '';
@@ -679,6 +741,8 @@ function limpiarFormUsuario() {
     '<i class="bi bi-person-plus text-success"></i> Agregar usuario';
   document.getElementById('btn-guardar-usuario').innerHTML =
     '<i class="bi bi-floppy"></i> Guardar usuario';
+  document.getElementById('btn-toggle-usuario').innerHTML =
+    '<i class="bi bi-person-plus"></i> Agregar usuario';
   document.getElementById('usuario-error').classList.add('d-none');
   document.getElementById('usuario-ok').classList.add('d-none');
 }
