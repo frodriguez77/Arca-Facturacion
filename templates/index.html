@@ -52,8 +52,17 @@
       <a href="/plantilla" class="btn btn-light btn-sm">
         <i class="bi bi-download"></i> Plantilla Excel
       </a>
+      {% if current_user.rol == 'admin' %}
       <a href="/admin" class="btn btn-outline-light btn-sm">
-        <i class="bi bi-gear"></i> Empresas
+        <i class="bi bi-gear"></i> Admin
+      </a>
+      {% endif %}
+      <div class="vr opacity-50 d-none d-sm-block"></div>
+      <span class="text-white opacity-75 small d-none d-sm-inline">
+        <i class="bi bi-person-circle"></i> {{ current_user.nombre }}
+      </span>
+      <a href="/logout" class="btn btn-outline-light btn-sm">
+        <i class="bi bi-box-arrow-right"></i> Salir
       </a>
     </div>
   </div>

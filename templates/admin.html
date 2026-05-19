@@ -17,9 +17,17 @@
 <div class="header py-3 mb-4 shadow-sm">
   <div class="container d-flex align-items-center justify-content-between flex-wrap gap-2">
     <h4 class="mb-0"><i class="bi bi-gear"></i> Gestión de Empresas</h4>
-    <a href="/" class="btn btn-light btn-sm">
-      <i class="bi bi-arrow-left"></i> Volver a facturación
-    </a>
+    <div class="d-flex gap-2 align-items-center">
+      <span class="text-white opacity-75 small d-none d-sm-inline">
+        <i class="bi bi-person-circle"></i> {{ current_user.nombre }}
+      </span>
+      <a href="/" class="btn btn-light btn-sm">
+        <i class="bi bi-arrow-left"></i> Facturación
+      </a>
+      <a href="/logout" class="btn btn-outline-light btn-sm">
+        <i class="bi bi-box-arrow-right"></i> Salir
+      </a>
+    </div>
   </div>
 </div>
 
@@ -153,6 +161,122 @@
             <i class="bi bi-floppy"></i> Guardar empresa
           </button>
           <button type="button" class="btn btn-outline-secondary" onclick="limpiarForm()">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Gestión de usuarios -->
+  <div class="card mt-4">
+    <div class="card-body p-4">
+      <h5 class="mb-3"><i class="bi bi-people text-primary"></i> Usuarios</h5>
+
+      <div class="table-responsive mb-4">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>Nombre</th>
+              <th>Usuario</th>
+              <th>Rol</th>
+              <th>Empresas</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody-usuarios">
+            {% for u in usuarios %}
+            <tr id="fila-u-{{ u.id }}">
+              <td class="fw-semibold">{{ u.nombre }}</td>
+              <td><code>{{ u.username }}</code></td>
+              <td>
+                {% if u.rol == 'admin' %}
+                <span class="badge bg-primary">Admin</span>
+                {% else %}
+                <span class="badge bg-secondary">Usuario</span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">
+                {% if u.rol == 'admin' %}
+                  <em>Todas</em>
+                {% elif u.empresas %}
+                  {% for eid in u.empresas %}
+                    {% for e in empresas %}{% if e.id == eid %}<span class="badge bg-light text-dark border me-1">{{ e.nombre }}</span>{% endif %}{% endfor %}
+                  {% endfor %}
+                {% else %}
+                  <em>Ninguna</em>
+                {% endif %}
+              </td>
+              <td class="d-flex gap-1">
+                <button class="btn btn-sm btn-outline-primary btn-editar-usuario"
+                        data-usuario='{{ u | tojson }}'>
+                  <i class="bi bi-pencil"></i>
+                </button>
+                {% if u.id != current_user.id %}
+                <button class="btn btn-sm btn-outline-danger"
+                        onclick="eliminarUsuario('{{ u.id }}', '{{ u.nombre }}')">
+                  <i class="bi bi-trash"></i>
+                </button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Formulario usuario -->
+      <h6 class="mb-3" id="form-usuario-titulo">
+        <i class="bi bi-person-plus text-success"></i> Agregar usuario
+      </h6>
+      <div id="usuario-error" class="alert alert-danger d-none"></div>
+      <div id="usuario-ok"    class="alert alert-success d-none"></div>
+
+      <form id="form-usuario" novalidate>
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">Nombre completo</label>
+            <input type="text" class="form-control" id="u-nombre" placeholder="Ej: Juan Pérez">
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">Usuario <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="u-username" placeholder="Ej: jperez" required>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">Contraseña <span class="text-muted fw-normal small">(dejar vacío para no cambiar al editar)</span></label>
+            <input type="password" class="form-control" id="u-password" placeholder="Mínimo 6 caracteres">
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">Rol <span class="text-danger">*</span></label>
+            <select class="form-select" id="u-rol" onchange="toggleEmpresasUsuario()">
+              <option value="usuario">Usuario (acceso limitado)</option>
+              <option value="admin">Administrador (acceso total)</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="bloque-empresas-usuario" class="mb-3">
+          <label class="form-label fw-semibold">Empresas habilitadas</label>
+          <div class="border rounded p-3 bg-light" id="lista-empresas-usuario">
+            {% for e in empresas %}
+            <div class="form-check">
+              <input class="form-check-input empresa-check" type="checkbox"
+                     value="{{ e.id }}" id="ue-{{ e.id }}">
+              <label class="form-check-label" for="ue-{{ e.id }}">
+                {{ e.nombre }} <span class="text-muted small">({{ e.cuit }})</span>
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="form-text">Solo aplica para usuarios con rol "Usuario".</div>
+        </div>
+
+        <input type="hidden" id="u-id">
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-success" id="btn-guardar-usuario">
+            <i class="bi bi-floppy"></i> Guardar usuario
+          </button>
+          <button type="button" class="btn btn-outline-secondary" onclick="limpiarFormUsuario()">
             Cancelar
           </button>
         </div>
@@ -369,6 +493,107 @@ function showOk(msg) {
 }
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// --- gestión de usuarios ----------------------------------------------------
+document.querySelectorAll('.btn-editar-usuario').forEach(btn => {
+  btn.addEventListener('click', () => {
+    editarUsuario(JSON.parse(btn.dataset.usuario));
+  });
+});
+
+function toggleEmpresasUsuario() {
+  const esAdmin = document.getElementById('u-rol').value === 'admin';
+  document.getElementById('bloque-empresas-usuario').style.display = esAdmin ? 'none' : '';
+}
+
+document.getElementById('form-usuario').addEventListener('submit', async e => {
+  e.preventDefault();
+  document.getElementById('usuario-error').classList.add('d-none');
+  document.getElementById('usuario-ok').classList.add('d-none');
+
+  const id       = document.getElementById('u-id').value.trim();
+  const empresas = [...document.querySelectorAll('.empresa-check:checked')].map(c => c.value);
+  const body = {
+    username: document.getElementById('u-username').value.trim(),
+    nombre:   document.getElementById('u-nombre').value.trim(),
+    password: document.getElementById('u-password').value,
+    rol:      document.getElementById('u-rol').value,
+    empresas,
+  };
+
+  const editando = !!id;
+  const url    = editando ? `/api/usuarios/${id}` : '/api/usuarios';
+  const method = editando ? 'PUT' : 'POST';
+
+  try {
+    const resp = await fetch(url, {
+      method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (data.error) {
+      const el = document.getElementById('usuario-error');
+      el.textContent = data.error; el.classList.remove('d-none');
+    } else {
+      const el = document.getElementById('usuario-ok');
+      el.textContent = editando ? 'Usuario actualizado.' : 'Usuario creado correctamente.';
+      el.classList.remove('d-none');
+      limpiarFormUsuario();
+      location.reload();
+    }
+  } catch (err) {
+    const el = document.getElementById('usuario-error');
+    el.textContent = 'Error de red: ' + err; el.classList.remove('d-none');
+  }
+});
+
+function editarUsuario(u) {
+  document.getElementById('u-id').value       = u.id       || '';
+  document.getElementById('u-username').value = u.username || '';
+  document.getElementById('u-nombre').value   = u.nombre   || '';
+  document.getElementById('u-password').value = '';
+  document.getElementById('u-rol').value      = u.rol      || 'usuario';
+  toggleEmpresasUsuario();
+
+  // marcar empresas habilitadas
+  document.querySelectorAll('.empresa-check').forEach(cb => {
+    cb.checked = (u.empresas || []).includes(cb.value);
+  });
+
+  document.getElementById('form-usuario-titulo').innerHTML =
+    '<i class="bi bi-pencil text-primary"></i> Editar usuario';
+  document.getElementById('btn-guardar-usuario').innerHTML =
+    '<i class="bi bi-floppy"></i> Guardar cambios';
+
+  document.getElementById('form-usuario-titulo').scrollIntoView({ behavior: 'smooth' });
+}
+
+function limpiarFormUsuario() {
+  ['u-id','u-username','u-nombre','u-password'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('u-rol').value = 'usuario';
+  document.querySelectorAll('.empresa-check').forEach(cb => cb.checked = false);
+  toggleEmpresasUsuario();
+  document.getElementById('form-usuario-titulo').innerHTML =
+    '<i class="bi bi-person-plus text-success"></i> Agregar usuario';
+  document.getElementById('btn-guardar-usuario').innerHTML =
+    '<i class="bi bi-floppy"></i> Guardar usuario';
+  document.getElementById('usuario-error').classList.add('d-none');
+  document.getElementById('usuario-ok').classList.add('d-none');
+}
+
+async function eliminarUsuario(id, nombre) {
+  if (!confirm(`¿Eliminar el usuario "${nombre}"?`)) return;
+  try {
+    const resp = await fetch(`/api/usuarios/${id}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (data.error) { alert('Error: ' + data.error); return; }
+    const fila = document.getElementById(`fila-u-${id}`);
+    if (fila) fila.remove();
+  } catch (err) {
+    alert('Error de red: ' + err);
+  }
 }
 
 // --- generador de CSR -------------------------------------------------------
