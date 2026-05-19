@@ -3,8 +3,21 @@
     "id": "prg",
     "nombre": "PRG - Empresa Principal",
     "cuit": "20267894362",
-    "cert": "C:\\ARCA_Certificados\\PRGFacturas_e4730afb1cab1ae.crt",
-    "key": "C:\\ARCA_Certificados\\mi_clave.key",
+    "cert": "C:\\Arca-Facturacion\\certificados\\20267894362\\PRGFacturas_e4730afb1cab1ae.crt",
+    "key": "C:\\Arca-Facturacion\\certificados\\20267894362\\mi_clave.key",
     "homologacion": false
+  },
+  {
+    "id": "estudiolofeudo",
+    "nombre": "Ignacio Lofeudo",
+    "cuit": "20356497024",
+    "cert": "C:\\Arca-Facturacion\\certificados\\20356497024\\IGfacturas_20ee84ed8f8cfe9f.crt",
+    "key": "C:\\Arca-Facturacion\\certificados\\20356497024\\20356497024_clave.key",
+    "homologacion": false,
+    "domicilio": "San Martin 1680 1 A",
+    "telefono": "",
+    "localidad": "Santa Fe",
+    "ing_brutos": "",
+    "inicio_actividades": ""
   }
 ]

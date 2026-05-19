@@ -3,6 +3,7 @@ import json
 import os
 import re
 import subprocess
+import traceback
 import uuid
 import zipfile
 from datetime import datetime
@@ -221,9 +222,17 @@ def procesar():
 
     wsaa_url, wsfe_wsdl = _empresa_urls(empresa)
 
+    # Verificar que existan los archivos de certificado antes de llamar a AFIP
+    cert_path = empresa.get('cert', '')
+    key_path  = empresa.get('key', '')
+    if not os.path.isfile(cert_path):
+        return jsonify({'error': f'Certificado no encontrado: {cert_path}\nAndá a Admin y actualizá la ruta del certificado (.crt)'}), 400
+    if not os.path.isfile(key_path):
+        return jsonify({'error': f'Clave privada no encontrada: {key_path}\nAndá a Admin y actualizá la ruta de la clave (.key)'}), 400
+
     try:
         token, sign = wsaa.get_ticket(
-            'wsfe', empresa['cert'], empresa['key'], wsaa_url, empresa['cuit']
+            'wsfe', cert_path, key_path, wsaa_url, empresa['cuit']
         )
         auth   = {'Token': token, 'Sign': sign, 'Cuit': int(empresa['cuit'])}
         client = wsfe.get_client(wsfe_wsdl)
@@ -295,6 +304,8 @@ def procesar():
         })
 
     except Exception as e:
+        tb = traceback.format_exc()
+        print(f"\n=== ERROR /procesar ===\n{tb}\n======================\n")
         return jsonify({'error': str(e)}), 500
 
 
@@ -452,8 +463,11 @@ def generar_csr():
     if not re.fullmatch(r'\d{11}', cuit):
         return jsonify({'error': 'El CUIT debe tener 11 dígitos sin guiones'}), 400
 
-    key_path = os.path.join(CERTS, f'{cuit}_clave.key')
-    csr_path = os.path.join(CERTS, f'{cuit}.csr')
+    # Subcarpeta por CUIT para mantener ordenado
+    cuit_dir = os.path.join(CERTS, cuit)
+    os.makedirs(cuit_dir, exist_ok=True)
+    key_path = os.path.join(cuit_dir, f'{cuit}_clave.key')
+    csr_path = os.path.join(cuit_dir, f'{cuit}.csr')
 
     try:
         openssl = encontrar_openssl()

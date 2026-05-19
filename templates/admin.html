@@ -101,15 +101,15 @@
         <div class="mb-3">
           <label class="form-label fw-semibold">Ruta del certificado (.crt) <span class="text-danger">*</span></label>
           <input type="text" class="form-control" id="f-cert"
-                 placeholder="{{ certs_dir }}\CUIT.crt" required>
-          <div class="form-text">Ej: <code>{{ certs_dir }}\20267894362.crt</code></div>
+                 placeholder="{{ certs_dir }}\CUIT\CUIT.crt" required>
+          <div class="form-text">Ej: <code>{{ certs_dir }}\20267894362\20267894362.crt</code></div>
         </div>
 
         <div class="mb-3">
           <label class="form-label fw-semibold">Ruta de la clave privada (.key) <span class="text-danger">*</span></label>
           <input type="text" class="form-control" id="f-key"
-                 placeholder="{{ certs_dir }}\CUIT_clave.key" required>
-          <div class="form-text">Ej: <code>{{ certs_dir }}\20267894362_clave.key</code></div>
+                 placeholder="{{ certs_dir }}\CUIT\CUIT_clave.key" required>
+          <div class="form-text">Ej: <code>{{ certs_dir }}\20267894362\20267894362_clave.key</code></div>
         </div>
 
         <hr class="my-3">
@@ -201,10 +201,11 @@
         <strong>Pasos después de descargar el ZIP:</strong>
         <ol class="mb-0 mt-2 small">
           <li>
-            El ZIP contiene dos archivos. El sistema ya los guardó automáticamente en:
+            El ZIP contiene dos archivos. El sistema ya los guardó automáticamente en una subcarpeta por CUIT:
             <div class="mt-1 mb-1">
-              <code class="d-block p-2 bg-white rounded border">{{ certs_dir }}</code>
+              <code class="d-block p-2 bg-white rounded border">{{ certs_dir }}\<em>CUIT</em>\</code>
             </div>
+            Ejemplo: <code>{{ certs_dir }}\20267894362\</code>
           </li>
           <li>Ingresá a <strong>ARCA</strong> con clave fiscal del titular del CUIT.</li>
           <li>Ir a <em>Administración de Certificados Digitales</em> → <em>Agregar alias</em>.</li>
@@ -212,15 +213,15 @@
           <li>
             Descargá el <code>.crt</code> que te entrega AFIP y guardalo en la misma carpeta:
             <div class="mt-1 mb-1">
-              <code class="d-block p-2 bg-white rounded border">{{ certs_dir }}</code>
+              <code class="d-block p-2 bg-white rounded border">{{ certs_dir }}\<em>CUIT</em>\</code>
             </div>
           </li>
           <li>
             Volvé a la sección <em>Agregar empresa</em> y usá estas rutas:<br>
             <span class="text-muted">Certificado:</span>
-            <code>{{ certs_dir }}\CUIT.crt</code><br>
+            <code>{{ certs_dir }}\CUIT\CUIT.crt</code><br>
             <span class="text-muted">Clave privada:</span>
-            <code>{{ certs_dir }}\CUIT_clave.key</code>
+            <code>{{ certs_dir }}\CUIT\CUIT_clave.key</code>
           </li>
         </ol>
       </div>
