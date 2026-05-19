@@ -3,20 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ARCA - Administrar Empresas</title>
+  <title>ARCA - Administración</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
   <style>
     body { background:#f1f5f9; }
     .header { background: linear-gradient(135deg,#1d4ed8,#0d9488); color:#fff; }
     .card  { border:none; box-shadow:0 2px 10px rgba(0,0,0,.08); border-radius:12px; }
+    .nav-tabs .nav-link { color: #495057; font-weight: 500; }
+    .nav-tabs .nav-link.active { color: #1d4ed8; font-weight: 600; }
+    .tab-content { background: #fff; border: 1px solid #dee2e6; border-top: none;
+                   border-radius: 0 0 12px 12px; padding: 2rem; box-shadow:0 2px 10px rgba(0,0,0,.08); }
+    .nav-tabs { border-bottom: none; }
+    .nav-tabs .nav-link { border-radius: 10px 10px 0 0; }
   </style>
 </head>
 <body>
 
 <div class="header py-3 mb-4 shadow-sm">
   <div class="container d-flex align-items-center justify-content-between flex-wrap gap-2">
-    <h4 class="mb-0"><i class="bi bi-gear"></i> Gestión de Empresas</h4>
+    <h4 class="mb-0"><i class="bi bi-gear"></i> Administración</h4>
     <div class="d-flex gap-2 align-items-center">
       <span class="text-white opacity-75 small d-none d-sm-inline">
         <i class="bi bi-person-circle"></i> {{ current_user.nombre }}
@@ -31,14 +37,106 @@
   </div>
 </div>
 
-<div class="container pb-5" style="max-width:860px">
+<div class="container pb-5" style="max-width:900px">
 
-  <!-- Lista de empresas -->
-  <div class="card mb-4">
-    <div class="card-body p-4">
+  <!-- Pestañas -->
+  <ul class="nav nav-tabs" id="adminTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="tab-csr-btn" data-bs-toggle="tab"
+              data-bs-target="#tab-csr" type="button" role="tab">
+        <i class="bi bi-shield-lock text-success"></i>
+        <span class="ms-1">1. Generar CSR</span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-empresa-btn" data-bs-toggle="tab"
+              data-bs-target="#tab-empresa" type="button" role="tab">
+        <i class="bi bi-building text-primary"></i>
+        <span class="ms-1">2. Empresas</span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-admin-btn" data-bs-toggle="tab"
+              data-bs-target="#tab-admin" type="button" role="tab">
+        <i class="bi bi-people text-secondary"></i>
+        <span class="ms-1">3. Usuarios</span>
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content" id="adminTabsContent">
+
+    <!-- ===== TAB 1: Generar CSR ===== -->
+    <div class="tab-pane fade show active" id="tab-csr" role="tabpanel">
+      <h5 class="mb-1"><i class="bi bi-shield-lock text-success"></i> Generar clave y CSR para AFIP</h5>
+      <p class="text-muted small mb-4">
+        Completá los datos y el sistema generará la clave privada (.key) y la solicitud de certificado (.csr)
+        listas para presentar en AFIP. Vas a descargar un ZIP con ambos archivos.
+      </p>
+
+      <div id="csr-error" class="alert alert-danger d-none"></div>
+
+      <form id="form-csr" novalidate>
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">CUIT <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="csr-cuit"
+                   placeholder="20123456789" maxlength="11" required>
+            <div class="form-text">11 dígitos, sin guiones.</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">Nombre / Razón social <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="csr-nombre"
+                   placeholder="Mi Empresa SRL" required>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">Email <span class="text-muted fw-normal">(opcional)</span></label>
+            <input type="email" class="form-control" id="csr-email"
+                   placeholder="admin@miempresa.com">
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-success mt-4" id="btn-csr">
+          <i class="bi bi-key-fill"></i> Generar y descargar ZIP
+        </button>
+      </form>
+
+      <div class="alert alert-info mt-4 mb-0">
+        <strong>Pasos después de descargar el ZIP:</strong>
+        <ol class="mb-0 mt-2 small">
+          <li>
+            El ZIP contiene dos archivos. El sistema ya los guardó automáticamente en una subcarpeta por CUIT:
+            <div class="mt-1 mb-1">
+              <code class="d-block p-2 bg-white rounded border">{{ certs_dir }}\<em>CUIT</em>\</code>
+            </div>
+            Ejemplo: <code>{{ certs_dir }}\20267894362\</code>
+          </li>
+          <li>Ingresá a <strong>ARCA</strong> con clave fiscal del titular del CUIT.</li>
+          <li>Ir a <em>Administración de Certificados Digitales</em> → <em>Agregar alias</em>.</li>
+          <li>Subí el archivo <code>CUIT.csr</code> y completá el proceso.</li>
+          <li>
+            Descargá el <code>.crt</code> que te entrega AFIP y guardalo en la misma carpeta:
+            <div class="mt-1 mb-1">
+              <code class="d-block p-2 bg-white rounded border">{{ certs_dir }}\<em>CUIT</em>\</code>
+            </div>
+          </li>
+          <li>
+            Andá a la pestaña <strong>2. Empresas</strong> y usá estas rutas:<br>
+            <span class="text-muted">Certificado:</span>
+            <code>{{ certs_dir }}\CUIT\CUIT.crt</code><br>
+            <span class="text-muted">Clave privada:</span>
+            <code>{{ certs_dir }}\CUIT\CUIT_clave.key</code>
+          </li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- ===== TAB 2: Empresas ===== -->
+    <div class="tab-pane fade" id="tab-empresa" role="tabpanel">
+
+      <!-- Lista de empresas -->
       <h5 class="mb-3">Empresas configuradas</h5>
-
-      <div id="lista-empresas">
+      <div id="lista-empresas" class="mb-4">
         {% if empresas %}
         <div class="table-responsive">
           <table class="table table-sm align-middle mb-0">
@@ -56,7 +154,7 @@
               <tr id="fila-{{ e.id }}">
                 <td class="fw-semibold">{{ e.nombre }}</td>
                 <td><code>{{ e.cuit }}</code></td>
-                <td class="text-muted small text-truncate" style="max-width:200px" title="{{ e.cert }}">{{ e.cert }}</td>
+                <td class="text-muted small text-truncate" style="max-width:180px" title="{{ e.cert }}">{{ e.cert }}</td>
                 <td>
                   {% if e.homologacion %}
                   <span class="badge bg-warning text-dark">HOMO</span>
@@ -83,41 +181,40 @@
         <p class="text-muted" id="msg-vacio">No hay empresas configuradas todavía.</p>
         {% endif %}
       </div>
-    </div>
-  </div>
 
-  <!-- Formulario agregar / editar empresa -->
-  <div class="card">
-    <div class="card-body p-4">
-      <h5 class="mb-4" id="form-titulo"><i class="bi bi-plus-circle text-primary"></i> Agregar empresa</h5>
+      <hr>
+
+      <!-- Formulario agregar / editar empresa -->
+      <h5 class="mb-4" id="form-titulo">
+        <i class="bi bi-plus-circle text-primary"></i> Agregar empresa
+      </h5>
 
       <div id="form-error" class="alert alert-danger d-none"></div>
       <div id="form-ok"    class="alert alert-success d-none"></div>
 
       <form id="form-empresa" novalidate>
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Nombre / Razón social <span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="f-nombre" placeholder="Ej: Mi Empresa SRL" required>
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label fw-semibold">CUIT <span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="f-cuit" placeholder="20123456789 (11 dígitos, sin guiones)" maxlength="11" required>
-          <div class="form-text">Solo números, sin guiones ni espacios.</div>
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Ruta del certificado (.crt) <span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="f-cert"
-                 placeholder="{{ certs_dir }}\CUIT\CUIT.crt" required>
-          <div class="form-text">Ej: <code>{{ certs_dir }}\20267894362\20267894362.crt</code></div>
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Ruta de la clave privada (.key) <span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="f-key"
-                 placeholder="{{ certs_dir }}\CUIT\CUIT_clave.key" required>
-          <div class="form-text">Ej: <code>{{ certs_dir }}\20267894362\20267894362_clave.key</code></div>
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">Nombre / Razón social <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="f-nombre" placeholder="Ej: Mi Empresa SRL" required>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">CUIT <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="f-cuit" placeholder="20123456789 (11 dígitos, sin guiones)" maxlength="11" required>
+            <div class="form-text">Solo números, sin guiones ni espacios.</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Ruta del certificado (.crt) <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="f-cert"
+                   placeholder="{{ certs_dir }}\CUIT\CUIT.crt" required>
+            <div class="form-text">Ej: <code>{{ certs_dir }}\20267894362\20267894362.crt</code></div>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Ruta de la clave privada (.key) <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="f-key"
+                   placeholder="{{ certs_dir }}\CUIT\CUIT_clave.key" required>
+            <div class="form-text">Ej: <code>{{ certs_dir }}\20267894362\20267894362_clave.key</code></div>
+          </div>
         </div>
 
         <hr class="my-3">
@@ -166,11 +263,10 @@
         </div>
       </form>
     </div>
-  </div>
 
-  <!-- Gestión de usuarios -->
-  <div class="card mt-4">
-    <div class="card-body p-4">
+    <!-- ===== TAB 3: Usuarios ===== -->
+    <div class="tab-pane fade" id="tab-admin" role="tabpanel">
+
       <h5 class="mb-3"><i class="bi bi-people text-primary"></i> Usuarios</h5>
 
       <div class="table-responsive mb-4">
@@ -225,7 +321,8 @@
         </table>
       </div>
 
-      <!-- Formulario usuario -->
+      <hr>
+
       <h6 class="mb-3" id="form-usuario-titulo">
         <i class="bi bi-person-plus text-success"></i> Agregar usuario
       </h6>
@@ -243,7 +340,9 @@
             <input type="text" class="form-control" id="u-username" placeholder="Ej: jperez" required>
           </div>
           <div class="col-12 col-md-6">
-            <label class="form-label fw-semibold">Contraseña <span class="text-muted fw-normal small">(dejar vacío para no cambiar al editar)</span></label>
+            <label class="form-label fw-semibold">Contraseña
+              <span class="text-muted fw-normal small">(vacío = no cambia al editar)</span>
+            </label>
             <input type="password" class="form-control" id="u-password" placeholder="Mínimo 6 caracteres">
           </div>
           <div class="col-12 col-md-6">
@@ -257,7 +356,7 @@
 
         <div id="bloque-empresas-usuario" class="mb-3">
           <label class="form-label fw-semibold">Empresas habilitadas</label>
-          <div class="border rounded p-3 bg-light" id="lista-empresas-usuario">
+          <div class="border rounded p-3 bg-light">
             {% for e in empresas %}
             <div class="form-check">
               <input class="form-check-input empresa-check" type="checkbox"
@@ -282,182 +381,25 @@
         </div>
       </form>
     </div>
-  </div>
 
-  <!-- Generador de CSR -->
-  <div class="card mt-4">
-    <div class="card-body p-4">
-      <h5 class="mb-1"><i class="bi bi-shield-lock text-success"></i> Generar clave y CSR para AFIP</h5>
-      <p class="text-muted small mb-4">
-        Completá los datos y el sistema generará la clave privada (.key) y la solicitud de certificado (.csr)
-        listas para presentar en AFIP. Vas a descargar un ZIP con ambos archivos.
-      </p>
-
-      <div id="csr-error" class="alert alert-danger d-none"></div>
-
-      <form id="form-csr" novalidate>
-        <div class="row g-3">
-          <div class="col-12 col-md-6">
-            <label class="form-label fw-semibold">CUIT <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" id="csr-cuit"
-                   placeholder="20123456789" maxlength="11" required>
-            <div class="form-text">11 dígitos, sin guiones.</div>
-          </div>
-          <div class="col-12 col-md-6">
-            <label class="form-label fw-semibold">Nombre / Razón social <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" id="csr-nombre"
-                   placeholder="Mi Empresa SRL" required>
-          </div>
-          <div class="col-12 col-md-6">
-            <label class="form-label fw-semibold">Email <span class="text-muted fw-normal">(opcional)</span></label>
-            <input type="email" class="form-control" id="csr-email"
-                   placeholder="admin@miempresa.com">
-          </div>
-        </div>
-
-        <button type="submit" class="btn btn-success mt-4" id="btn-csr">
-          <i class="bi bi-key-fill"></i> Generar y descargar ZIP
-        </button>
-      </form>
-
-      <!-- Pasos siguientes -->
-      <div class="alert alert-info mt-4 mb-0">
-        <strong>Pasos después de descargar el ZIP:</strong>
-        <ol class="mb-0 mt-2 small">
-          <li>
-            El ZIP contiene dos archivos. El sistema ya los guardó automáticamente en una subcarpeta por CUIT:
-            <div class="mt-1 mb-1">
-              <code class="d-block p-2 bg-white rounded border">{{ certs_dir }}\<em>CUIT</em>\</code>
-            </div>
-            Ejemplo: <code>{{ certs_dir }}\20267894362\</code>
-          </li>
-          <li>Ingresá a <strong>ARCA</strong> con clave fiscal del titular del CUIT.</li>
-          <li>Ir a <em>Administración de Certificados Digitales</em> → <em>Agregar alias</em>.</li>
-          <li>Subí el archivo <code>CUIT.csr</code> y completá el proceso.</li>
-          <li>
-            Descargá el <code>.crt</code> que te entrega AFIP y guardalo en la misma carpeta:
-            <div class="mt-1 mb-1">
-              <code class="d-block p-2 bg-white rounded border">{{ certs_dir }}\<em>CUIT</em>\</code>
-            </div>
-          </li>
-          <li>
-            Volvé a la sección <em>Agregar empresa</em> y usá estas rutas:<br>
-            <span class="text-muted">Certificado:</span>
-            <code>{{ certs_dir }}\CUIT\CUIT.crt</code><br>
-            <span class="text-muted">Clave privada:</span>
-            <code>{{ certs_dir }}\CUIT\CUIT_clave.key</code>
-          </li>
-        </ol>
-      </div>
-    </div>
-  </div>
-
-</div>
+  </div><!-- /tab-content -->
+</div><!-- /container -->
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// Botones editar — usan data-empresa para evitar conflicto de comillas
+
+// ===== EMPRESAS =============================================================
+
 document.querySelectorAll('.btn-editar').forEach(btn => {
   btn.addEventListener('click', () => {
     editarEmpresa(JSON.parse(btn.dataset.empresa));
   });
 });
 
-document.getElementById('form-empresa').addEventListener('submit', async e => {
-  e.preventDefault();
-  clearAlerts();
-
-  const id   = document.getElementById('f-id').value.trim();
-  const body = {
-    nombre:              document.getElementById('f-nombre').value.trim(),
-    cuit:                document.getElementById('f-cuit').value.trim(),
-    cert:                document.getElementById('f-cert').value.trim(),
-    key:                 document.getElementById('f-key').value.trim(),
-    homologacion:        document.getElementById('f-homo').checked,
-    domicilio:           document.getElementById('f-domicilio').value.trim(),
-    telefono:            document.getElementById('f-telefono').value.trim(),
-    localidad:           document.getElementById('f-localidad').value.trim(),
-    ing_brutos:          document.getElementById('f-ing-brutos').value.trim(),
-    inicio_actividades:  document.getElementById('f-inicio-act').value.trim(),
-  };
-
-  const editando = !!id;
-  const url      = editando ? `/api/empresas/${id}` : '/api/empresas';
-  const method   = editando ? 'PUT' : 'POST';
-
-  try {
-    const resp = await fetch(url, {
-      method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
-    });
-    const data = await resp.json();
-    if (data.error) {
-      showError(data.error);
-    } else {
-      showOk(editando ? 'Empresa actualizada correctamente.' : 'Empresa guardada correctamente.');
-      limpiarForm();
-      location.reload();   // recargar tabla para reflejar cambios
-    }
-  } catch (err) {
-    showError('Error de red: ' + err);
-  }
-});
-
-function agregarFilaTabla(e) {
-  const tbody = document.getElementById('tbody-empresas');
-  const msgVacio = document.getElementById('msg-vacio');
-  if (msgVacio) msgVacio.remove();
-
-  if (!tbody) {
-    // tabla no existía (no había empresas), recargar para mostrarla completa
-    location.reload();
-    return;
-  }
-
-  const badge = e.homologacion
-    ? '<span class="badge bg-warning text-dark">HOMO</span>'
-    : '<span class="badge bg-success">PROD</span>';
-  const tr = document.createElement('tr');
-  tr.id = `fila-${e.id}`;
-  tr.innerHTML = `
-    <td class="fw-semibold">${escHtml(e.nombre)}</td>
-    <td><code>${escHtml(e.cuit)}</code></td>
-    <td class="text-muted small text-truncate" style="max-width:200px" title="${escHtml(e.cert)}">${escHtml(e.cert)}</td>
-    <td>${badge}</td>
-    <td>
-      <button class="btn btn-sm btn-outline-danger" onclick="eliminarEmpresa('${e.id}', '${escHtml(e.nombre)}')">
-        <i class="bi bi-trash"></i>
-      </button>
-    </td>`;
-  tbody.appendChild(tr);
-}
-
-async function eliminarEmpresa(id, nombre) {
-  if (!confirm(`¿Eliminar la empresa "${nombre}"?\nEsta acción no se puede deshacer.`)) return;
-  try {
-    const resp = await fetch(`/api/empresas/${id}`, { method: 'DELETE' });
-    const data = await resp.json();
-    if (data.error) { alert('Error: ' + data.error); return; }
-    const fila = document.getElementById(`fila-${id}`);
-    if (fila) fila.remove();
-  } catch (err) {
-    alert('Error de red: ' + err);
-  }
-}
-
-function limpiarForm() {
-  ['f-id','f-nombre','f-cuit','f-cert','f-key',
-   'f-domicilio','f-telefono','f-localidad','f-ing-brutos','f-inicio-act']
-    .forEach(id => document.getElementById(id).value = '');
-  document.getElementById('f-homo').checked = false;
-  document.getElementById('form-titulo').innerHTML =
-    '<i class="bi bi-plus-circle text-primary"></i> Agregar empresa';
-  document.getElementById('btn-guardar').textContent = ' Guardar empresa';
-  document.getElementById('btn-guardar').innerHTML =
-    '<i class="bi bi-floppy"></i> Guardar empresa';
-  clearAlerts();
-}
-
 function editarEmpresa(e) {
+  // Cambiar a pestaña Empresas
+  bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-empresa-btn')).show();
+
   document.getElementById('f-id').value            = e.id            || '';
   document.getElementById('f-nombre').value        = e.nombre        || '';
   document.getElementById('f-cuit').value          = e.cuit          || '';
@@ -476,7 +418,71 @@ function editarEmpresa(e) {
     '<i class="bi bi-floppy"></i> Guardar cambios';
 
   clearAlerts();
-  document.getElementById('form-titulo').scrollIntoView({ behavior: 'smooth' });
+  setTimeout(() => document.getElementById('form-titulo').scrollIntoView({ behavior: 'smooth' }), 150);
+}
+
+function limpiarForm() {
+  ['f-id','f-nombre','f-cuit','f-cert','f-key',
+   'f-domicilio','f-telefono','f-localidad','f-ing-brutos','f-inicio-act']
+    .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-homo').checked = false;
+  document.getElementById('form-titulo').innerHTML =
+    '<i class="bi bi-plus-circle text-primary"></i> Agregar empresa';
+  document.getElementById('btn-guardar').innerHTML =
+    '<i class="bi bi-floppy"></i> Guardar empresa';
+  clearAlerts();
+}
+
+document.getElementById('form-empresa').addEventListener('submit', async e => {
+  e.preventDefault();
+  clearAlerts();
+
+  const id   = document.getElementById('f-id').value.trim();
+  const body = {
+    nombre:             document.getElementById('f-nombre').value.trim(),
+    cuit:               document.getElementById('f-cuit').value.trim(),
+    cert:               document.getElementById('f-cert').value.trim(),
+    key:                document.getElementById('f-key').value.trim(),
+    homologacion:       document.getElementById('f-homo').checked,
+    domicilio:          document.getElementById('f-domicilio').value.trim(),
+    telefono:           document.getElementById('f-telefono').value.trim(),
+    localidad:          document.getElementById('f-localidad').value.trim(),
+    ing_brutos:         document.getElementById('f-ing-brutos').value.trim(),
+    inicio_actividades: document.getElementById('f-inicio-act').value.trim(),
+  };
+
+  const editando = !!id;
+  const url    = editando ? `/api/empresas/${id}` : '/api/empresas';
+  const method = editando ? 'PUT' : 'POST';
+
+  try {
+    const resp = await fetch(url, {
+      method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (data.error) {
+      showError(data.error);
+    } else {
+      showOk(editando ? 'Empresa actualizada correctamente.' : 'Empresa guardada correctamente.');
+      limpiarForm();
+      location.reload();
+    }
+  } catch (err) {
+    showError('Error de red: ' + err);
+  }
+});
+
+async function eliminarEmpresa(id, nombre) {
+  if (!confirm(`¿Eliminar la empresa "${nombre}"?\nEsta acción no se puede deshacer.`)) return;
+  try {
+    const resp = await fetch(`/api/empresas/${id}`, { method: 'DELETE' });
+    const data = await resp.json();
+    if (data.error) { alert('Error: ' + data.error); return; }
+    const fila = document.getElementById(`fila-${id}`);
+    if (fila) fila.remove();
+  } catch (err) {
+    alert('Error de red: ' + err);
+  }
 }
 
 function clearAlerts() {
@@ -495,7 +501,9 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// --- gestión de usuarios ----------------------------------------------------
+
+// ===== USUARIOS =============================================================
+
 document.querySelectorAll('.btn-editar-usuario').forEach(btn => {
   btn.addEventListener('click', () => {
     editarUsuario(JSON.parse(btn.dataset.usuario));
@@ -505,6 +513,43 @@ document.querySelectorAll('.btn-editar-usuario').forEach(btn => {
 function toggleEmpresasUsuario() {
   const esAdmin = document.getElementById('u-rol').value === 'admin';
   document.getElementById('bloque-empresas-usuario').style.display = esAdmin ? 'none' : '';
+}
+
+function editarUsuario(u) {
+  document.getElementById('u-id').value       = u.id       || '';
+  document.getElementById('u-username').value = u.username || '';
+  document.getElementById('u-nombre').value   = u.nombre   || '';
+  document.getElementById('u-password').value = '';
+  document.getElementById('u-rol').value      = u.rol      || 'usuario';
+  toggleEmpresasUsuario();
+
+  document.querySelectorAll('.empresa-check').forEach(cb => {
+    cb.checked = (u.empresas || []).includes(cb.value);
+  });
+
+  document.getElementById('form-usuario-titulo').innerHTML =
+    '<i class="bi bi-pencil text-primary"></i> Editar usuario';
+  document.getElementById('btn-guardar-usuario').innerHTML =
+    '<i class="bi bi-floppy"></i> Guardar cambios';
+
+  document.getElementById('usuario-error').classList.add('d-none');
+  document.getElementById('usuario-ok').classList.add('d-none');
+  setTimeout(() => document.getElementById('form-usuario-titulo').scrollIntoView({ behavior: 'smooth' }), 50);
+}
+
+function limpiarFormUsuario() {
+  ['u-id','u-username','u-nombre','u-password'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('u-rol').value = 'usuario';
+  document.querySelectorAll('.empresa-check').forEach(cb => cb.checked = false);
+  toggleEmpresasUsuario();
+  document.getElementById('form-usuario-titulo').innerHTML =
+    '<i class="bi bi-person-plus text-success"></i> Agregar usuario';
+  document.getElementById('btn-guardar-usuario').innerHTML =
+    '<i class="bi bi-floppy"></i> Guardar usuario';
+  document.getElementById('usuario-error').classList.add('d-none');
+  document.getElementById('usuario-ok').classList.add('d-none');
 }
 
 document.getElementById('form-usuario').addEventListener('submit', async e => {
@@ -547,42 +592,6 @@ document.getElementById('form-usuario').addEventListener('submit', async e => {
   }
 });
 
-function editarUsuario(u) {
-  document.getElementById('u-id').value       = u.id       || '';
-  document.getElementById('u-username').value = u.username || '';
-  document.getElementById('u-nombre').value   = u.nombre   || '';
-  document.getElementById('u-password').value = '';
-  document.getElementById('u-rol').value      = u.rol      || 'usuario';
-  toggleEmpresasUsuario();
-
-  // marcar empresas habilitadas
-  document.querySelectorAll('.empresa-check').forEach(cb => {
-    cb.checked = (u.empresas || []).includes(cb.value);
-  });
-
-  document.getElementById('form-usuario-titulo').innerHTML =
-    '<i class="bi bi-pencil text-primary"></i> Editar usuario';
-  document.getElementById('btn-guardar-usuario').innerHTML =
-    '<i class="bi bi-floppy"></i> Guardar cambios';
-
-  document.getElementById('form-usuario-titulo').scrollIntoView({ behavior: 'smooth' });
-}
-
-function limpiarFormUsuario() {
-  ['u-id','u-username','u-nombre','u-password'].forEach(id => {
-    document.getElementById(id).value = '';
-  });
-  document.getElementById('u-rol').value = 'usuario';
-  document.querySelectorAll('.empresa-check').forEach(cb => cb.checked = false);
-  toggleEmpresasUsuario();
-  document.getElementById('form-usuario-titulo').innerHTML =
-    '<i class="bi bi-person-plus text-success"></i> Agregar usuario';
-  document.getElementById('btn-guardar-usuario').innerHTML =
-    '<i class="bi bi-floppy"></i> Guardar usuario';
-  document.getElementById('usuario-error').classList.add('d-none');
-  document.getElementById('usuario-ok').classList.add('d-none');
-}
-
 async function eliminarUsuario(id, nombre) {
   if (!confirm(`¿Eliminar el usuario "${nombre}"?`)) return;
   try {
@@ -596,7 +605,9 @@ async function eliminarUsuario(id, nombre) {
   }
 }
 
-// --- generador de CSR -------------------------------------------------------
+
+// ===== GENERADOR DE CSR =====================================================
+
 document.getElementById('form-csr').addEventListener('submit', async e => {
   e.preventDefault();
   document.getElementById('csr-error').classList.add('d-none');
@@ -619,7 +630,6 @@ document.getElementById('form-csr').addEventListener('submit', async e => {
     });
 
     if (resp.ok) {
-      // Descargar el ZIP directamente
       const blob = await resp.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
