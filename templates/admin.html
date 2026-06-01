@@ -64,6 +64,13 @@
         <span class="ms-1">3. Usuarios</span>
       </button>
     </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-backup-btn" data-bs-toggle="tab"
+              data-bs-target="#tab-backup" type="button" role="tab">
+        <i class="bi bi-cloud-arrow-down text-warning"></i>
+        <span class="ms-1">4. Backup</span>
+      </button>
+    </li>
   </ul>
 
   <div class="tab-content" id="adminTabsContent">
@@ -507,6 +514,52 @@
       </div><!-- /collapse -->
     </div><!-- /tab-admin -->
 
+    <!-- ===== TAB 4: Backup / Restore ===== -->
+    <div class="tab-pane fade" id="tab-backup" role="tabpanel">
+
+      <h5 class="mb-1"><i class="bi bi-cloud-arrow-down text-warning"></i> Backup y restauración</h5>
+      <p class="text-muted small mb-4">
+        Exportá todos los datos del sistema (facturas, empresas y usuarios) en un único archivo ZIP.
+        Usalo para hacer copias de seguridad o para migrar el sistema a otra PC.
+      </p>
+
+      <!-- Exportar -->
+      <div class="border rounded p-4 mb-4">
+        <h6 class="fw-semibold mb-1"><i class="bi bi-box-arrow-up text-success"></i> Exportar backup</h6>
+        <p class="text-muted small mb-3">
+          Descarga un ZIP con <strong>uploads/</strong> (todas las facturas),
+          <strong>empresas.json</strong> y <strong>usuarios.json</strong>.
+          Los certificados (.crt / .key) <strong>no se incluyen</strong> — copialos manualmente.
+        </p>
+        <a href="/admin/backup" class="btn btn-success">
+          <i class="bi bi-download"></i> Descargar backup completo
+        </a>
+      </div>
+
+      <!-- Restaurar -->
+      <div class="border rounded p-4">
+        <h6 class="fw-semibold mb-1"><i class="bi bi-box-arrow-in-down text-primary"></i> Restaurar backup</h6>
+        <p class="text-muted small mb-3">
+          Subí un archivo ZIP generado por este sistema para restaurar los datos.
+          <strong>Advertencia:</strong> esto reemplaza los datos actuales de empresas, usuarios y facturas.
+        </p>
+
+        <div id="restore-error" class="alert alert-danger d-none"></div>
+        <div id="restore-ok"    class="alert alert-success d-none"></div>
+
+        <form id="form-restore" novalidate>
+          <div class="mb-3">
+            <input type="file" class="form-control" id="restore-file" accept=".zip" required>
+            <div class="form-text">Solo archivos .zip generados por esta aplicación.</div>
+          </div>
+          <button type="submit" class="btn btn-primary" id="btn-restore">
+            <i class="bi bi-cloud-upload"></i> Restaurar backup
+          </button>
+        </form>
+      </div>
+
+    </div><!-- /tab-backup -->
+
   </div><!-- /tab-content -->
 </div><!-- /container -->
 
@@ -828,6 +881,44 @@ async function eliminarUsuario(id, nombre) {
   }
 }
 
+
+// ===== BACKUP / RESTORE ======================================================
+document.getElementById('form-restore').addEventListener('submit', async e => {
+  e.preventDefault();
+  const file = document.getElementById('restore-file').files[0];
+  if (!file) return;
+
+  if (!confirm('¿Restaurar el backup?\nEsto reemplazará los datos actuales de empresas, usuarios y facturas.')) return;
+
+  document.getElementById('restore-error').classList.add('d-none');
+  document.getElementById('restore-ok').classList.add('d-none');
+
+  const btn = document.getElementById('btn-restore');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Restaurando...';
+
+  const fd = new FormData();
+  fd.append('backup', file);
+
+  try {
+    const resp = await fetch('/admin/restore', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (data.error) {
+      const el = document.getElementById('restore-error');
+      el.textContent = data.error; el.classList.remove('d-none');
+    } else {
+      const el = document.getElementById('restore-ok');
+      el.textContent = '✅ ' + data.msg;
+      el.classList.remove('d-none');
+    }
+  } catch (err) {
+    const el = document.getElementById('restore-error');
+    el.textContent = 'Error de red: ' + err; el.classList.remove('d-none');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-cloud-upload"></i> Restaurar backup';
+  }
+});
 
 // ===== GENERADOR DE CSR ======================================================
 

@@ -834,6 +834,60 @@ def api_reportes_exportar():
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
+# ---------- backup / restore -------------------------------------------------
+
+EMPRESAS_FILE = os.path.join(BASE, 'empresas.json')
+USUARIOS_FILE = os.path.join(BASE, 'usuarios.json')
+
+@app.route('/admin/backup')
+@admin_required
+def admin_backup():
+    """Genera un ZIP con uploads/, empresas.json y usuarios.json."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Datos de configuración
+        for fname in ('empresas.json', 'usuarios.json'):
+            fpath = os.path.join(BASE, fname)
+            if os.path.exists(fpath):
+                zf.write(fpath, fname)
+        # Facturas (uploads/)
+        for root, dirs, files in os.walk(UPLOAD):
+            for file in files:
+                filepath = os.path.join(root, file)
+                arcname  = os.path.relpath(filepath, BASE)
+                zf.write(filepath, arcname)
+    buf.seek(0)
+    fecha = datetime.today().strftime('%Y%m%d_%H%M')
+    return send_file(buf, as_attachment=True,
+                     download_name=f'arca_backup_{fecha}.zip',
+                     mimetype='application/zip')
+
+
+@app.route('/admin/restore', methods=['POST'])
+@admin_required
+def admin_restore():
+    """Restaura un backup ZIP generado por /admin/backup."""
+    f = request.files.get('backup')
+    if not f or not f.filename.endswith('.zip'):
+        return jsonify({'error': 'Seleccioná un archivo .zip de backup válido'}), 400
+
+    try:
+        with zipfile.ZipFile(f, 'r') as zf:
+            for name in zf.namelist():
+                # Seguridad: solo restaurar uploads/ y los JSON permitidos
+                if name.startswith('uploads/') or name in ('empresas.json', 'usuarios.json'):
+                    # Evitar path traversal
+                    dest = os.path.normpath(os.path.join(BASE, name))
+                    if not dest.startswith(BASE):
+                        continue
+                    os.makedirs(os.path.dirname(dest), exist_ok=True)
+                    with zf.open(name) as src, open(dest, 'wb') as dst:
+                        dst.write(src.read())
+        return jsonify({'ok': True, 'msg': 'Backup restaurado correctamente. Reiniciá el servidor.'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # ---------- administración ---------------------------------------------------
 
 @app.route('/admin')
