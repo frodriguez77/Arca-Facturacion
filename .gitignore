@@ -1,14 +1,24 @@
 # Caché y tokens AFIP
 wsaa_cache.json
 
+# Datos sensibles — NUNCA subir al repo
+usuarios.json
+empresas.json
+
 # Archivos subidos y resultados
 uploads/
 
-# Certificados (guardarlos fuera del repo)
+# Certificados y claves privadas
+certificados/
 *.crt
 *.key
 *.csr
 *.pem
+*.zip
+*.pdf
+
+# Carpetas internas de Claude
+.claude/worktrees/
 
 # Python
 __pycache__/
