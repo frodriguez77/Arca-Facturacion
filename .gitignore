@@ -20,6 +20,12 @@ certificados/
 # Carpetas internas de Claude
 .claude/worktrees/
 
+# Logs del servidor
+logs/*.log
+
+# NSSM (se descarga en el instalar.bat)
+tools/nssm.exe
+
 # Python
 __pycache__/
 *.pyc
