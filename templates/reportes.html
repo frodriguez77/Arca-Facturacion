@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARCA - Reportes</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body { background: #f1f5f9; }
+    .header { background: linear-gradient(135deg, #1d4ed8, #0d9488); color: #fff; }
+    .card  { border: none; box-shadow: 0 2px 10px rgba(0,0,0,.08); border-radius: 12px; }
+    .stat-card { border-radius: 12px; padding: 1.25rem 1.5rem; }
+    #tbl-reporte thead { position: sticky; top: 0; z-index: 1; }
+    .badge-ok   { background: #d1fae5; color: #065f46; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .spinner-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); z-index: 9999;
+      align-items: center; justify-content: center; flex-direction: column; color: #fff;
+    }
+    .spinner-overlay.on { display: flex; }
+  </style>
+</head>
+<body>
+
+<div class="spinner-overlay" id="spinner">
+  <div class="spinner-border mb-3" style="width:3rem;height:3rem;"></div>
+  <div class="fs-5">Generando reporte...</div>
+</div>
+
+<div class="header py-3 mb-4 shadow-sm">
+  <div class="container d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+      <h4 class="mb-0"><i class="bi bi-bar-chart-line"></i> Reportes de Facturación</h4>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      <span class="text-white opacity-75 small d-none d-sm-inline">
+        <i class="bi bi-person-circle"></i> {{ current_user.nombre }}
+      </span>
+      <a href="/" class="btn btn-light btn-sm">
+        <i class="bi bi-arrow-left"></i> Facturación
+      </a>
+      <a href="/logout" class="btn btn-outline-light btn-sm">
+        <i class="bi bi-box-arrow-right"></i> Salir
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="container pb-5" style="max-width:1100px">
+
+  <!-- Filtros -->
+  <div class="card mb-4">
+    <div class="card-body p-4">
+      <h5 class="mb-3"><i class="bi bi-funnel text-primary"></i> Filtros</h5>
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-md-3">
+          <label class="form-label fw-semibold">Empresa</label>
+          <select class="form-select" id="f-empresa">
+            <option value="">— Seleccioná —</option>
+            {% for e in empresas %}
+            <option value="{{ e.id }}">{{ e.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label fw-semibold">Desde</label>
+          <input type="month" class="form-control" id="f-desde" value="{{ mes_desde }}">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label fw-semibold">Hasta</label>
+          <input type="month" class="form-control" id="f-hasta" value="{{ mes_hasta }}">
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label fw-semibold">Cliente</label>
+          <input type="text" class="form-control" id="f-cliente"
+                 placeholder="Buscar por nombre...">
+        </div>
+        <div class="col-12 col-md-2 d-flex gap-2">
+          <button class="btn btn-primary flex-grow-1" id="btn-buscar">
+            <i class="bi bi-search"></i> Buscar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tarjetas de totales -->
+  <div class="row g-3 mb-4" id="stats" style="display:none!important">
+    <div class="col-12 col-md-4">
+      <div class="stat-card card text-center">
+        <div class="text-muted small mb-1">Comprobantes aprobados</div>
+        <div class="fs-1 fw-bold text-primary" id="stat-cantidad">-</div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="stat-card card text-center">
+        <div class="text-muted small mb-1">Total facturado</div>
+        <div class="fs-1 fw-bold text-success" id="stat-monto">-</div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="stat-card card text-center">
+        <div class="text-muted small mb-1">Promedio por comprobante</div>
+        <div class="fs-1 fw-bold text-info" id="stat-promedio">-</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gráfico -->
+  <div class="card mb-4 d-none" id="card-grafico">
+    <div class="card-body p-4">
+      <h5 class="mb-3"><i class="bi bi-bar-chart text-primary"></i> Facturación por mes</h5>
+      <canvas id="grafico-mes" height="90"></canvas>
+    </div>
+  </div>
+
+  <!-- Tabla -->
+  <div class="card d-none" id="card-tabla">
+    <div class="card-body p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h5 class="mb-0"><i class="bi bi-table text-primary"></i> Detalle de comprobantes</h5>
+        <button class="btn btn-success btn-sm" id="btn-exportar">
+          <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
+        </button>
+      </div>
+
+      <div class="table-responsive" style="max-height:480px; overflow-y:auto;">
+        <table class="table table-sm table-hover align-middle" id="tbl-reporte">
+          <thead class="table-dark">
+            <tr>
+              <th>Mes</th>
+              <th>Fecha</th>
+              <th>Cliente</th>
+              <th>PV</th>
+              <th>Nro</th>
+              <th class="num">Neto</th>
+              <th class="num">IVA</th>
+              <th class="num">Total</th>
+              <th>CAE</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-reporte"></tbody>
+          <tfoot id="tfoot-reporte" class="table-secondary fw-bold"></tfoot>
+        </table>
+      </div>
+
+      <div id="msg-vacio" class="text-center text-muted py-4 d-none">
+        <i class="bi bi-inbox" style="font-size:2rem"></i>
+        <p class="mt-2">No se encontraron comprobantes con esos filtros.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+let graficoInstancia = null;
+let filtrosActuales  = {};
+
+function spin(on) {
+  document.getElementById('spinner').classList.toggle('on', on);
+}
+
+function fmt(n) {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency', currency: 'ARS', minimumFractionDigits: 2
+  }).format(n);
+}
+
+document.getElementById('btn-buscar').addEventListener('click', buscar);
+document.getElementById('f-empresa').addEventListener('change', () => {
+  // limpiar resultados al cambiar empresa
+  document.getElementById('card-grafico').classList.add('d-none');
+  document.getElementById('card-tabla').classList.add('d-none');
+  document.getElementById('stats').style.display = 'none';
+});
+
+async function buscar() {
+  const empresa = document.getElementById('f-empresa').value;
+  if (!empresa) { alert('Seleccioná una empresa.'); return; }
+
+  filtrosActuales = {
+    empresa_id: empresa,
+    desde:      document.getElementById('f-desde').value,
+    hasta:      document.getElementById('f-hasta').value,
+    cliente:    document.getElementById('f-cliente').value.trim(),
+  };
+
+  const params = new URLSearchParams(filtrosActuales);
+  spin(true);
+
+  try {
+    const resp = await fetch('/api/reportes?' + params);
+    const data = await resp.json();
+    spin(false);
+
+    if (data.error) { alert('Error: ' + data.error); return; }
+
+    renderStats(data.totales);
+    renderGrafico(data.por_mes);
+    renderTabla(data.registros, data.totales);
+
+  } catch (e) {
+    spin(false);
+    alert('Error: ' + e);
+  }
+}
+
+function renderStats(totales) {
+  const stats = document.getElementById('stats');
+  stats.style.display = '';
+  stats.style.removeProperty('display'); // quitar !important workaround
+  stats.classList.remove('d-none');
+  document.getElementById('stats').removeAttribute('style');
+  document.getElementById('stats').style.display = 'flex';
+
+  document.getElementById('stat-cantidad').textContent = totales.cantidad;
+  document.getElementById('stat-monto').textContent    = fmt(totales.monto);
+  const prom = totales.cantidad > 0 ? totales.monto / totales.cantidad : 0;
+  document.getElementById('stat-promedio').textContent = fmt(prom);
+}
+
+function renderGrafico(porMes) {
+  document.getElementById('card-grafico').classList.remove('d-none');
+  const labels = Object.keys(porMes).sort();
+  const values = labels.map(m => porMes[m]);
+
+  if (graficoInstancia) graficoInstancia.destroy();
+
+  graficoInstancia = new Chart(document.getElementById('grafico-mes'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Total facturado ($)',
+        data: values,
+        backgroundColor: 'rgba(29, 78, 216, 0.75)',
+        borderColor:     'rgba(29, 78, 216, 1)',
+        borderWidth: 1,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => fmt(ctx.parsed.y)
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: v => '$' + new Intl.NumberFormat('es-AR').format(v)
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderTabla(registros, totales) {
+  document.getElementById('card-tabla').classList.remove('d-none');
+  const tbody   = document.getElementById('tbody-reporte');
+  const tfoot   = document.getElementById('tfoot-reporte');
+  const msgVacio = document.getElementById('msg-vacio');
+
+  if (!registros.length) {
+    tbody.innerHTML = '';
+    tfoot.innerHTML = '';
+    msgVacio.classList.remove('d-none');
+    return;
+  }
+  msgVacio.classList.add('d-none');
+
+  tbody.innerHTML = registros.map(r => `
+    <tr>
+      <td><span class="badge bg-light text-dark border">${r.mes}</span></td>
+      <td>${r.fecha}</td>
+      <td>${escHtml(r.razon_social)}</td>
+      <td class="text-center">${r.punto_venta.toString().padStart(4,'0')}</td>
+      <td class="text-center">${r.nro_cbte.toString().padStart(8,'0')}</td>
+      <td class="num">${fmt(r.imp_neto)}</td>
+      <td class="num">${fmt(r.imp_iva)}</td>
+      <td class="num fw-semibold">${fmt(r.imp_total)}</td>
+      <td><code class="small">${r.cae}</code></td>
+    </tr>`
+  ).join('');
+
+  // Calcular subtotales
+  const sumNeto  = registros.reduce((a, r) => a + r.imp_neto,  0);
+  const sumIva   = registros.reduce((a, r) => a + r.imp_iva,   0);
+  const sumTotal = registros.reduce((a, r) => a + r.imp_total, 0);
+
+  tfoot.innerHTML = `
+    <tr>
+      <td colspan="5" class="text-end">TOTAL (${totales.cantidad} comprobantes)</td>
+      <td class="num">${fmt(sumNeto)}</td>
+      <td class="num">${fmt(sumIva)}</td>
+      <td class="num text-success">${fmt(sumTotal)}</td>
+      <td></td>
+    </tr>`;
+}
+
+document.getElementById('btn-exportar').addEventListener('click', () => {
+  const params = new URLSearchParams(filtrosActuales);
+  window.location.href = '/api/reportes/exportar?' + params;
+});
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

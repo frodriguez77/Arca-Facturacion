@@ -689,6 +689,151 @@ def generar_csr():
         return jsonify({'error': str(e)}), 500
 
 
+# ---------- reportes ---------------------------------------------------------
+
+def _leer_registros_reporte(empresa_id: str, desde: str, hasta: str, cliente: str) -> list[dict]:
+    """Lee todos los resultados de una empresa filtrando por mes y cliente."""
+    empresa = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return []
+    base_dir = os.path.join(UPLOAD, empresa['cuit'])
+    if not os.path.exists(base_dir):
+        return []
+
+    meses = sorted([
+        d for d in os.listdir(base_dir)
+        if os.path.isdir(os.path.join(base_dir, d)) and re.match(r'\d{4}-\d{2}', d)
+    ])
+    if desde:
+        meses = [m for m in meses if m >= desde]
+    if hasta:
+        meses = [m for m in meses if m <= hasta]
+
+    registros = []
+    for mes in meses:
+        path = os.path.join(base_dir, mes, 'facturas_resultado.xlsx')
+        if not os.path.exists(path):
+            continue
+        try:
+            df = pd.read_excel(path)
+            df.columns = [c.lower().strip().replace(' ', '_') for c in df.columns]
+            for _, row in df.iterrows():
+                if str(row.get('resultado', '')).upper() != 'APROBADO':
+                    continue
+                razon = str(row.get('razon_social', ''))
+                if cliente and cliente.lower() not in razon.lower():
+                    continue
+                registros.append({
+                    'mes':          mes,
+                    'fecha':        str(row.get('fecha', ''))[:10],
+                    'razon_social': razon,
+                    'punto_venta':  int(row.get('punto_venta', 0)),
+                    'nro_cbte':     int(row.get('nro_cbte', 0)),
+                    'tipo_cbte':    int(row.get('tipo_cbte', 0)),
+                    'imp_neto':     float(row.get('imp_neto', 0)),
+                    'imp_iva':      float(row.get('imp_iva', 0)),
+                    'imp_total':    float(row.get('imp_total', 0)),
+                    'cae':          str(row.get('cae', '')),
+                })
+        except Exception as e:
+            print(f"Error leyendo {path}: {e}")
+    return registros
+
+
+@app.route('/reportes')
+@login_required
+def reportes():
+    user     = _get_current_user()
+    empresas = _user_empresas(user)
+    # Meses disponibles: desde el más antiguo hasta hoy
+    mes_hasta = _mes_actual()
+    mes_desde = (datetime.today().replace(day=1)
+                 .replace(month=1)).strftime('%Y-%m')  # enero de este año
+    return render_template('reportes.html', empresas=empresas,
+                           current_user=user,
+                           mes_desde=mes_desde, mes_hasta=mes_hasta)
+
+
+@app.route('/api/reportes')
+@login_required
+def api_reportes():
+    user       = _get_current_user()
+    empresa_id = request.args.get('empresa_id', '').strip()
+    desde      = request.args.get('desde', '').strip()
+    hasta      = request.args.get('hasta', '').strip()
+    cliente    = request.args.get('cliente', '').strip()
+
+    empresa = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 400
+    if not _user_can_access(user, empresa_id):
+        return jsonify({'error': 'Acceso denegado'}), 403
+
+    registros = _leer_registros_reporte(empresa_id, desde, hasta, cliente)
+
+    # Totales
+    monto_total = sum(r['imp_total'] for r in registros)
+    por_mes: dict[str, float] = {}
+    for r in registros:
+        por_mes[r['mes']] = round(por_mes.get(r['mes'], 0) + r['imp_total'], 2)
+
+    return jsonify({
+        'registros': registros,
+        'totales':   {'cantidad': len(registros), 'monto': round(monto_total, 2)},
+        'por_mes':   por_mes,
+    })
+
+
+@app.route('/api/reportes/exportar')
+@login_required
+def api_reportes_exportar():
+    user       = _get_current_user()
+    empresa_id = request.args.get('empresa_id', '').strip()
+    desde      = request.args.get('desde', '').strip()
+    hasta      = request.args.get('hasta', '').strip()
+    cliente    = request.args.get('cliente', '').strip()
+
+    empresa = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return 'Empresa no encontrada', 404
+    if not _user_can_access(user, empresa_id):
+        return 'Acceso denegado', 403
+
+    registros = _leer_registros_reporte(empresa_id, desde, hasta, cliente)
+    if not registros:
+        return 'No hay datos para exportar', 404
+
+    df = pd.DataFrame(registros, columns=[
+        'mes', 'fecha', 'razon_social', 'punto_venta',
+        'nro_cbte', 'tipo_cbte', 'imp_neto', 'imp_iva', 'imp_total', 'cae'
+    ])
+    df.columns = ['Mes', 'Fecha', 'Cliente', 'Pto. Venta',
+                  'Nro. Cbte', 'Tipo Cbte', 'Neto', 'IVA', 'Total', 'CAE']
+
+    # Fila de totales
+    total_row = pd.DataFrame([{
+        'Mes': '', 'Fecha': '', 'Cliente': 'TOTAL',
+        'Pto. Venta': '', 'Nro. Cbte': len(registros), 'Tipo Cbte': '',
+        'Neto': df['Neto'].sum(), 'IVA': df['IVA'].sum(),
+        'Total': df['Total'].sum(), 'CAE': '',
+    }])
+    df = pd.concat([df, total_row], ignore_index=True)
+
+    out = io.BytesIO()
+    with pd.ExcelWriter(out, engine='openpyxl') as w:
+        df.to_excel(w, index=False, sheet_name='Reporte')
+        ws = w.sheets['Reporte']
+        # Ancho de columnas
+        for col in ws.columns:
+            max_len = max(len(str(c.value or '')) for c in col)
+            ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
+    out.seek(0)
+
+    nombre = f"reporte_{empresa['cuit']}_{desde or 'inicio'}_{hasta or _mes_actual()}.xlsx"
+    return send_file(out, as_attachment=True, download_name=nombre,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
 # ---------- administración ---------------------------------------------------
 
 @app.route('/admin')
