@@ -207,6 +207,7 @@
 let empresaActual  = null;
 let registrosData  = [];   // registros del Excel (para el PDF)
 let resultadosData = [];   // resultados de ARCA  (para el PDF)
+let mesActual      = new Date().toISOString().slice(0, 7);  // YYYY-MM
 
 // --- selección de empresa ---------------------------------------------------
 document.querySelectorAll('.empresa-card').forEach(card => {
@@ -325,7 +326,7 @@ function renderResultados(data) {
   document.getElementById('r-total').textContent = data.resumen.total;
   document.getElementById('r-ok').textContent    = data.resumen.aprobados;
   document.getElementById('r-err').textContent   = data.resumen.rechazados;
-  document.getElementById('btn-descargar').href  = '/descargar?empresa_id=' + empresaActual.id;
+  document.getElementById('btn-descargar').href  = `/descargar?empresa_id=${empresaActual.id}&mes=${mesActual}`;
 
   document.getElementById('tbody-result').innerHTML = data.resultados.map((r, idx) => {
     const cls    = r.resultado === 'APROBADO' ? 'badge-ok' : r.resultado === 'RECHAZADO' ? 'badge-err' : 'badge-warn';
@@ -363,7 +364,7 @@ async function imprimirPDF(idx) {
 
   // Si tenemos los datos en memoria los usamos; si no, leemos desde el Excel guardado
   if (!registro) {
-    window.open(`/pdf/${empresaActual.id}/${resultado.fila}`, '_blank');
+    window.open(`/pdf/${empresaActual.id}/${resultado.fila}?mes=${mesActual}`, '_blank');
     return;
   }
 

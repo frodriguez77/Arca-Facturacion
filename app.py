@@ -41,11 +41,36 @@ os.makedirs(CERTS,  exist_ok=True)
 
 # ---------- helpers -----------------------------------------------------------
 
-def _upload_path(empresa_id: str) -> str:
-    return os.path.join(UPLOAD, f'facturas_{empresa_id}.xlsx')
+def _mes_actual() -> str:
+    """Devuelve el mes actual en formato YYYY-MM."""
+    return datetime.today().strftime('%Y-%m')
 
-def _resultado_path(empresa_id: str) -> str:
-    return os.path.join(UPLOAD, f'facturas_{empresa_id}_resultado.xlsx')
+def _carpeta_empresa(cuit: str, mes: str | None = None) -> str:
+    """
+    Devuelve (y crea si no existe) la carpeta de uploads para una empresa y mes.
+    Estructura: uploads/{CUIT}/{YYYY-MM}/
+    """
+    carpeta = os.path.join(UPLOAD, cuit, mes or _mes_actual())
+    os.makedirs(carpeta, exist_ok=True)
+    return carpeta
+
+def _upload_path(empresa_id: str, mes: str | None = None) -> str:
+    empresa = EmpresaRepository.get_by_id(empresa_id)
+    cuit    = empresa['cuit'] if empresa else empresa_id
+    return os.path.join(_carpeta_empresa(cuit, mes), 'facturas.xlsx')
+
+def _resultado_path(empresa_id: str, mes: str | None = None) -> str:
+    empresa = EmpresaRepository.get_by_id(empresa_id)
+    cuit    = empresa['cuit'] if empresa else empresa_id
+    return os.path.join(_carpeta_empresa(cuit, mes), 'facturas_resultado.xlsx')
+
+def _upload_path_actual(empresa_id: str) -> str:
+    """Ruta del archivo subido en el mes actual."""
+    return _upload_path(empresa_id, _mes_actual())
+
+def _resultado_path_actual(empresa_id: str) -> str:
+    """Ruta del resultado en el mes actual."""
+    return _resultado_path(empresa_id, _mes_actual())
 
 def _empresa_urls(empresa: dict) -> tuple[str, str]:
     if empresa.get('homologacion'):
@@ -355,7 +380,7 @@ def upload():
     if not f.filename.endswith(('.xlsx', '.xls')):
         return jsonify({'error': 'El archivo debe ser .xlsx'}), 400
 
-    path = _upload_path(empresa_id)
+    path = _upload_path_actual(empresa_id)
     f.save(path)
 
     try:
@@ -392,7 +417,7 @@ def procesar():
     if not _user_can_access(user, empresa_id):
         return jsonify({'error': 'No tenés acceso a esta empresa'}), 403
 
-    path = _upload_path(empresa_id)
+    path = _upload_path_actual(empresa_id)
     if not os.path.exists(path):
         return jsonify({'error': 'No hay archivo cargado para esta empresa'}), 400
 
@@ -460,7 +485,7 @@ def procesar():
                     'cae': '', 'vto_cae': '', 'obs': str(e),
                 })
 
-        _guardar_resultado(path, _resultado_path(empresa_id), resultados)
+        _guardar_resultado(path, _resultado_path_actual(empresa_id), resultados)
 
         aprobados = sum(1 for r in resultados if r['resultado'] == 'APROBADO')
         return jsonify({
@@ -510,16 +535,17 @@ def _guardar_resultado(src_path: str, dest_path: str, resultados: list):
 def descargar():
     user       = _get_current_user()
     empresa_id = request.args.get('empresa_id', '').strip()
+    mes        = request.args.get('mes', '').strip() or _mes_actual()
     empresa    = EmpresaRepository.get_by_id(empresa_id)
     if not empresa:
         return 'Empresa no encontrada', 404
     if not _user_can_access(user, empresa_id):
         return 'Acceso denegado', 403
-    path = _resultado_path(empresa_id)
+    path = _resultado_path(empresa_id, mes)
     if not os.path.exists(path):
         return 'No hay resultado disponible', 404
-    return send_file(path, as_attachment=True,
-                     download_name=f'facturas_{empresa["cuit"]}_resultado.xlsx')
+    nombre = f'facturas_{empresa["cuit"]}_{mes}_resultado.xlsx'
+    return send_file(path, as_attachment=True, download_name=nombre)
 
 
 @app.route('/plantilla')
@@ -551,7 +577,8 @@ def pdf_desde_resultado(empresa_id, fila):
     if not _user_can_access(user, empresa_id):
         return 'Acceso denegado', 403
 
-    path = _resultado_path(empresa_id)
+    mes  = request.args.get('mes', '').strip() or _mes_actual()
+    path = _resultado_path(empresa_id, mes)
     if not os.path.exists(path):
         return 'No hay resultados guardados para esta empresa', 404
 
