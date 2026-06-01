@@ -1,0 +1,28 @@
+[
+  {
+    "id": "admin",
+    "username": "admin",
+    "password_hash": "scrypt:32768:8:1$UsrpkBmqIrz82kzt$8ec4318d5b344a9182123176d1e5234a0a91381214d0bb6d040f71a227912d2296870de5aebc0466df8f68da80ff34c8a14dbfee53997710aa8fac8171201210",
+    "rol": "admin",
+    "nombre": "Administrador",
+    "empresas": []
+  },
+  {
+    "id": "frodriguez",
+    "username": "frodriguez",
+    "password_hash": "scrypt:32768:8:1$WtRB7UyTaz0LjOMP$7d7bdabacf112b28c0a2877953a7ab7462cc366c047a099f28a9a3e7308dfd7b796fe836730273d646b29909b0917f22e161f5888da02a38585e07ec1cc73fe4",
+    "rol": "usuario",
+    "nombre": "Facundo Rodriguez",
+    "empresas": [
+      "prg"
+    ]
+  },
+  {
+    "id": "ilofeudo",
+    "username": "ilofeudo",
+    "password_hash": "scrypt:32768:8:1$S3R96tIR6lybNsjB$06070019ad4f3d384f6712c9eef68a9e909dcb6ff9bb591d5424a95b243f4fd85fcd009f9f5dcf73c3dcac7e3072178aed87ce7f16be59c3c63f834d1bac7701",
+    "rol": "admin",
+    "nombre": "Igancio Lofeudo",
+    "empresas": []
+  }
+]

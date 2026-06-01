@@ -1,11 +1,16 @@
 [
   {
     "id": "prg",
-    "nombre": "PRG - Empresa Principal",
+    "nombre": "Facundo Rodriguez",
     "cuit": "20267894362",
     "cert": "C:\\Arca-Facturacion\\certificados\\20267894362\\PRGFacturas_e4730afb1cab1ae.crt",
     "key": "C:\\Arca-Facturacion\\certificados\\20267894362\\mi_clave.key",
-    "homologacion": false
+    "homologacion": false,
+    "domicilio": "",
+    "telefono": "",
+    "localidad": "",
+    "ing_brutos": "",
+    "inicio_actividades": ""
   },
   {
     "id": "estudiolofeudo",
