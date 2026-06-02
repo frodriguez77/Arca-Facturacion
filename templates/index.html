@@ -249,10 +249,11 @@ document.querySelectorAll('.empresa-card').forEach(card => {
 
 async function cargarResultadosMes() {
   try {
-    const resp = await fetch(`/api/resultados-mes?empresa_id=${empresaActual.id}&mes=${mesActual}`);
+    const resp = await fetch(`/api/resultados-mes?empresa_id=${empresaActual.id}`);
     const data = await resp.json();
     if (data.resultados && data.resultados.length > 0) {
-      registrosData  = [];   // no tenemos el Excel original en memoria
+      registrosData = [];
+      if (data.mes) mesActual = data.mes;
       renderResultados(data);
       document.getElementById('btn-descargar').href =
         `/descargar?empresa_id=${empresaActual.id}&mes=${mesActual}`;

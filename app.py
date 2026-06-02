@@ -546,14 +546,29 @@ def _guardar_resultado(src_path: str, dest_path: str, resultados: list):
 def api_resultados_mes():
     user       = _get_current_user()
     empresa_id = request.args.get('empresa_id', '').strip()
-    mes        = request.args.get('mes', '').strip() or _mes_actual()
+    mes        = request.args.get('mes', '').strip()
     empresa    = EmpresaRepository.get_by_id(empresa_id)
     if not empresa or not _user_can_access(user, empresa_id):
-        return jsonify({'resultados': [], 'resumen': {'total': 0, 'aprobados': 0, 'rechazados': 0}})
+        return jsonify({'resultados': [], 'mes': '', 'resumen': {'total': 0, 'aprobados': 0, 'rechazados': 0}})
 
-    path = os.path.join(_carpeta_empresa(empresa['cuit'], mes), 'facturas_resultado.xlsx')
+    base_dir = os.path.join(UPLOAD, empresa['cuit'])
+
+    # Si no se pide un mes específico, buscar el último con datos
+    if not mes:
+        if os.path.exists(base_dir):
+            meses = sorted([
+                d for d in os.listdir(base_dir)
+                if os.path.isdir(os.path.join(base_dir, d))
+                and re.match(r'\d{4}-\d{2}', d)
+                and os.path.exists(os.path.join(base_dir, d, 'facturas_resultado.xlsx'))
+            ], reverse=True)
+            mes = meses[0] if meses else _mes_actual()
+        else:
+            mes = _mes_actual()
+
+    path = os.path.join(base_dir, mes, 'facturas_resultado.xlsx')
     if not os.path.exists(path):
-        return jsonify({'resultados': [], 'resumen': {'total': 0, 'aprobados': 0, 'rechazados': 0}})
+        return jsonify({'resultados': [], 'mes': mes, 'resumen': {'total': 0, 'aprobados': 0, 'rechazados': 0}})
 
     try:
         df = pd.read_excel(path)
@@ -564,15 +579,16 @@ def api_resultados_mes():
             if res not in ('APROBADO', 'RECHAZADO', 'ERROR'):
                 continue
             resultados.append({
-                'fila':    int(idx) + 2,
-                'nro':     int(row.get('nro_cbte', 0)) if res == 'APROBADO' else 0,
+                'fila':      int(idx) + 2,
+                'nro':       int(row.get('nro_cbte', 0)) if res == 'APROBADO' else 0,
                 'resultado': 'APROBADO' if res == 'APROBADO' else res,
-                'cae':     str(row.get('cae', '')) if res == 'APROBADO' else '',
-                'vto_cae': str(row.get('vto_cae', '')) if res == 'APROBADO' else '',
-                'obs':     str(row.get('observaciones', '')),
+                'cae':       str(row.get('cae', '')) if res == 'APROBADO' else '',
+                'vto_cae':   str(row.get('vto_cae', '')) if res == 'APROBADO' else '',
+                'obs':       str(row.get('observaciones', '')),
             })
         aprobados = sum(1 for r in resultados if r['resultado'] == 'APROBADO')
         return jsonify({
+            'mes':       mes,
             'resultados': resultados,
             'resumen': {
                 'total':      len(resultados),
