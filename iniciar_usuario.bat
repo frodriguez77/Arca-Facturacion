@@ -30,7 +30,7 @@ if %errorlevel% neq 0 (
 
 :: --- Iniciar servidor en segundo plano sin ventana ---
 echo Iniciando servidor ARCA...
-start "" /B pythonw "%APP_DIR%\app.py"
+start "" /B py "%APP_DIR%\app.py"
 
 :: --- Esperar hasta 15 segundos a que el servidor responda ---
 set INTENTOS=0
