@@ -44,20 +44,22 @@ def _find_tag(elem, tag):
 
 
 def _generate_tra(service):
-    now    = datetime.datetime.now()
+    tz_arg = datetime.timezone(datetime.timedelta(hours=-3))
+    now    = datetime.datetime.now(tz_arg)
     expiry = now + datetime.timedelta(hours=12)
+    fmt    = "%Y-%m-%dT%H:%M:%S-03:00"
     tra = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<loginTicketRequest version="1.0">\n'
         '  <header>\n'
         f'    <uniqueId>{int(now.timestamp())}</uniqueId>\n'
-        f'    <generationTime>{now.strftime("%Y-%m-%dT%H:%M:%S")}</generationTime>\n'
-        f'    <expirationTime>{expiry.strftime("%Y-%m-%dT%H:%M:%S")}</expirationTime>\n'
+        f'    <generationTime>{now.strftime(fmt)}</generationTime>\n'
+        f'    <expirationTime>{expiry.strftime(fmt)}</expirationTime>\n'
         '  </header>\n'
         f'  <service>{service}</service>\n'
         '</loginTicketRequest>\n'
     )
-    print(f"TRA: generationTime={now.strftime('%Y-%m-%dT%H:%M:%S')} (hora local sin timezone)")
+    print(f"TRA: generationTime={now.strftime(fmt)}")
     return tra.encode('utf-8')
 
 
