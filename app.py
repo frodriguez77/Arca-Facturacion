@@ -717,7 +717,7 @@ def _leer_registros_reporte(empresa_id: str, desde: str, hasta: str, cliente: st
         try:
             df = pd.read_excel(path)
             df.columns = [c.lower().strip().replace(' ', '_') for c in df.columns]
-            for _, row in df.iterrows():
+            for idx, row in df.iterrows():
                 if str(row.get('resultado', '')).upper() != 'APROBADO':
                     continue
                 razon = str(row.get('razon_social', ''))
@@ -725,6 +725,8 @@ def _leer_registros_reporte(empresa_id: str, desde: str, hasta: str, cliente: st
                     continue
                 registros.append({
                     'mes':          mes,
+                    'fila':         int(idx) + 2,
+                    'empresa_id':   empresa_id,
                     'fecha':        str(row.get('fecha', ''))[:10],
                     'razon_social': razon,
                     'punto_venta':  int(row.get('punto_venta', 0)),

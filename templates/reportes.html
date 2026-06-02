@@ -132,6 +132,7 @@
               <th class="num">IVA</th>
               <th class="num">Total</th>
               <th>CAE</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="tbody-reporte"></tbody>
@@ -291,6 +292,12 @@ function renderTabla(registros, totales) {
       <td class="num">${fmt(r.imp_iva)}</td>
       <td class="num fw-semibold">${fmt(r.imp_total)}</td>
       <td><code class="small">${r.cae}</code></td>
+      <td>
+        <a href="/pdf/${r.empresa_id}/${r.fila}?mes=${r.mes}" target="_blank"
+           class="btn btn-sm btn-outline-danger py-0">
+          <i class="bi bi-file-earmark-pdf"></i> PDF
+        </a>
+      </td>
     </tr>`
   ).join('');
 
@@ -305,6 +312,7 @@ function renderTabla(registros, totales) {
       <td class="num">${fmt(sumNeto)}</td>
       <td class="num">${fmt(sumIva)}</td>
       <td class="num text-success">${fmt(sumTotal)}</td>
+      <td></td>
       <td></td>
     </tr>`;
 }
