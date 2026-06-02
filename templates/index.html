@@ -241,8 +241,27 @@ document.querySelectorAll('.empresa-card').forEach(card => {
     }
 
     hide('card-empresa'); show('card-upload');
+
+    // Cargar resultados del mes actual si existen
+    cargarResultadosMes();
   });
 });
+
+async function cargarResultadosMes() {
+  try {
+    const resp = await fetch(`/api/resultados-mes?empresa_id=${empresaActual.id}&mes=${mesActual}`);
+    const data = await resp.json();
+    if (data.resultados && data.resultados.length > 0) {
+      registrosData  = [];   // no tenemos el Excel original en memoria
+      renderResultados(data);
+      document.getElementById('btn-descargar').href =
+        `/descargar?empresa_id=${empresaActual.id}&mes=${mesActual}`;
+      hide('card-upload'); show('card-result');
+    }
+  } catch (e) {
+    // Si falla silenciosamente, el usuario sube el Excel normalmente
+  }
+}
 
 document.getElementById('btn-cambiar-empresa')?.addEventListener('click', () => {
   empresaActual = null;
