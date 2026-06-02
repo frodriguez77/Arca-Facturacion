@@ -377,8 +377,11 @@ function renderResultados(data) {
            <button class="btn btn-sm btn-outline-danger py-0" title="Ver PDF" onclick="imprimirPDF(${idx})">
              <i class="bi bi-file-earmark-pdf"></i>
            </button>
-           <button class="btn btn-sm btn-outline-warning py-0" title="Nota de Crédito" onclick="abrirNC(${idx})">
+           <button class="btn btn-sm btn-outline-warning py-0" title="Nota de Crédito" onclick="abrirAsociado('nc',${idx})">
              <i class="bi bi-arrow-counterclockwise"></i> NC
+           </button>
+           <button class="btn btn-sm btn-outline-primary py-0" title="Nota de Débito" onclick="abrirAsociado('nd',${idx})">
+             <i class="bi bi-plus-circle"></i> ND
            </button>
          </div>`
       : '';
@@ -439,15 +442,21 @@ async function imprimirPDF(idx) {
   }
 }
 
-// --- Nota de Crédito --------------------------------------------------------
-let ncPendiente = null;
+// --- Nota de Crédito / Débito -----------------------------------------------
+let asociadoPendiente = null;
 
-function abrirNC(idx) {
-  const r = resultadosData[idx];
-  ncPendiente = { idx, fila: r.fila, mes: mesActual };
+const ASOCIADO_CONFIG = {
+  nc: { titulo: 'Nota de Crédito', endpoint: '/api/nota-credito', btnClass: 'btn-warning' },
+  nd: { titulo: 'Nota de Débito',  endpoint: '/api/nota-debito',  btnClass: 'btn-primary' },
+};
+
+function abrirAsociado(tipo, idx) {
+  const r   = resultadosData[idx];
+  const cfg = ASOCIADO_CONFIG[tipo];
+  asociadoPendiente = { tipo, fila: r.fila, mes: mesActual };
 
   document.getElementById('modal-nc-body').innerHTML = `
-    <p>Se va a emitir una <strong>Nota de Crédito</strong> para revertir:</p>
+    <p>Se va a emitir una <strong>${cfg.titulo}</strong> para:</p>
     <table class="table table-sm table-bordered">
       <tr><td class="fw-semibold">Nro</td><td>${r.nro}</td></tr>
       <tr><td class="fw-semibold">CAE</td><td><code>${r.cae}</code></td></tr>
@@ -458,28 +467,26 @@ function abrirNC(idx) {
       Esta acción emite un comprobante real en AFIP. ¿Confirmar?
     </div>`;
 
+  const btnConf = document.getElementById('btn-confirmar-nc');
+  btnConf.className = `btn ${cfg.btnClass}`;
+  btnConf.innerHTML = `<i class="bi bi-send-fill"></i> Emitir ${cfg.titulo}`;
   new bootstrap.Modal(document.getElementById('modal-nc')).show();
 }
 
 document.getElementById('btn-confirmar-nc').addEventListener('click', async () => {
-  if (!ncPendiente) return;
+  if (!asociadoPendiente) return;
+  const cfg = ASOCIADO_CONFIG[asociadoPendiente.tipo];
   const btn = document.getElementById('btn-confirmar-nc');
-  btn.disabled = true;
-  btn.textContent = 'Procesando...';
+  btn.disabled = true; btn.textContent = 'Procesando...';
 
   try {
-    const resp = await fetch('/api/nota-credito', {
+    const resp = await fetch(cfg.endpoint, {
       method:  'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        empresa_id: empresaActual.id,
-        mes:        ncPendiente.mes,
-        fila:       ncPendiente.fila,
-      }),
+      body: JSON.stringify({ empresa_id: empresaActual.id, mes: asociadoPendiente.mes, fila: asociadoPendiente.fila }),
     });
     const data = await resp.json();
     bootstrap.Modal.getInstance(document.getElementById('modal-nc')).hide();
-
     if (data.error) {
       alert('Error: ' + data.error);
     } else {
@@ -490,8 +497,8 @@ document.getElementById('btn-confirmar-nc').addEventListener('click', async () =
     alert('Error: ' + e);
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Emitir Nota de Crédito';
-    ncPendiente = null;
+    btn.innerHTML = `<i class="bi bi-send-fill"></i> Emitir`;
+    asociadoPendiente = null;
   }
 });
 </script>

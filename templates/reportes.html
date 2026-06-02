@@ -318,8 +318,12 @@ function renderTabla(registros, totales) {
             <i class="bi bi-file-earmark-pdf"></i>
           </a>
           <button class="btn btn-sm btn-outline-warning py-0"
-                  onclick="abrirNC('${r.empresa_id}','${r.mes}',${r.fila},${r.nro_cbte},'${r.cae}','${r.vto_cae}')">
+                  onclick="abrirAsociado('nc','${r.empresa_id}','${r.mes}',${r.fila},${r.nro_cbte},'${r.cae}','${r.vto_cae}')">
             <i class="bi bi-arrow-counterclockwise"></i> NC
+          </button>
+          <button class="btn btn-sm btn-outline-primary py-0"
+                  onclick="abrirAsociado('nd','${r.empresa_id}','${r.mes}',${r.fila},${r.nro_cbte},'${r.cae}','${r.vto_cae}')">
+            <i class="bi bi-plus-circle"></i> ND
           </button>
         </div>
       </td>
@@ -352,12 +356,17 @@ function escHtml(s) {
 }
 
 // --- Nota de Crédito --------------------------------------------------------
-let ncPendiente = null;
+let asociadoPendiente = null;
+const ASOCIADO_CONFIG = {
+  nc: { titulo: 'Nota de Crédito', endpoint: '/api/nota-credito', btnClass: 'btn-warning' },
+  nd: { titulo: 'Nota de Débito',  endpoint: '/api/nota-debito',  btnClass: 'btn-primary' },
+};
 
-function abrirNC(empresaId, mes, fila, nro, cae, vtoCAE) {
-  ncPendiente = { empresaId, mes, fila };
+function abrirAsociado(tipo, empresaId, mes, fila, nro, cae, vtoCAE) {
+  const cfg = ASOCIADO_CONFIG[tipo];
+  asociadoPendiente = { tipo, empresaId, mes, fila };
   document.getElementById('modal-nc-body').innerHTML = `
-    <p>Se va a emitir una <strong>Nota de Crédito</strong> para revertir:</p>
+    <p>Se va a emitir una <strong>${cfg.titulo}</strong> para:</p>
     <table class="table table-sm table-bordered">
       <tr><td class="fw-semibold">Nro</td><td>${nro}</td></tr>
       <tr><td class="fw-semibold">CAE</td><td><code>${cae}</code></td></tr>
@@ -367,18 +376,22 @@ function abrirNC(empresaId, mes, fila, nro, cae, vtoCAE) {
       <i class="bi bi-exclamation-triangle"></i>
       Esta acción emite un comprobante real en AFIP. ¿Confirmar?
     </div>`;
+  const btnConf = document.getElementById('btn-confirmar-nc');
+  btnConf.className = `btn ${cfg.btnClass}`;
+  btnConf.innerHTML = `<i class="bi bi-send-fill"></i> Emitir ${cfg.titulo}`;
   new bootstrap.Modal(document.getElementById('modal-nc')).show();
 }
 
 document.getElementById('btn-confirmar-nc').addEventListener('click', async () => {
-  if (!ncPendiente) return;
+  if (!asociadoPendiente) return;
+  const cfg = ASOCIADO_CONFIG[asociadoPendiente.tipo];
   const btn = document.getElementById('btn-confirmar-nc');
   btn.disabled = true; btn.textContent = 'Procesando...';
   try {
-    const resp = await fetch('/api/nota-credito', {
+    const resp = await fetch(cfg.endpoint, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ empresa_id: ncPendiente.empresaId, mes: ncPendiente.mes, fila: ncPendiente.fila }),
+      body: JSON.stringify({ empresa_id: asociadoPendiente.empresaId, mes: asociadoPendiente.mes, fila: asociadoPendiente.fila }),
     });
     const data = await resp.json();
     bootstrap.Modal.getInstance(document.getElementById('modal-nc')).hide();
@@ -390,7 +403,7 @@ document.getElementById('btn-confirmar-nc').addEventListener('click', async () =
   } catch (e) {
     alert('Error: ' + e);
   } finally {
-    btn.disabled = false; btn.textContent = 'Emitir Nota de Crédito'; ncPendiente = null;
+    btn.disabled = false; btn.innerHTML = `<i class="bi bi-send-fill"></i> Emitir`; asociadoPendiente = null;
   }
 });
 </script>

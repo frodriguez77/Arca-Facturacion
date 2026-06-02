@@ -45,6 +45,14 @@ NC_TIPO_MAP = {
     211: 213, 212: 213,
 }
 
+ND_TIPO_MAP = {
+    1: 2,             # Factura A  → ND A
+    6: 7,             # Factura B  → ND B
+    11: 12,           # Factura C  → ND C
+    51: 52,           # Factura M  → ND M
+    201: 202, 206: 207, 211: 212,
+}
+
 TIPO_NOMBRE = {
     1: 'Factura A',       2: 'Nota de Débito A',  3: 'Nota de Crédito A',
     6: 'Factura B',       7: 'Nota de Débito B',  8: 'Nota de Crédito B',
@@ -620,15 +628,7 @@ def api_resultados_mes():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/nota-credito', methods=['POST'])
-@login_required
-def api_nota_credito():
-    user       = _get_current_user()
-    data       = request.get_json(force=True)
-    empresa_id = data.get('empresa_id', '').strip()
-    mes_orig   = data.get('mes', '').strip()
-    fila       = int(data.get('fila', 0))
-
+def _emitir_comprobante_asociado(tipo_map, label, empresa_id, mes_orig, fila, user):
     empresa = EmpresaRepository.get_by_id(empresa_id)
     if not empresa:
         return jsonify({'error': 'Empresa no encontrada'}), 400
@@ -645,11 +645,11 @@ def api_nota_credito():
     if idx < 0 or idx >= len(df):
         return jsonify({'error': 'Fila no encontrada'}), 400
 
-    orig     = df.iloc[idx].to_dict()
+    orig      = df.iloc[idx].to_dict()
     tipo_orig = int(orig.get('tipo_cbte', 0))
-    tipo_nc   = NC_TIPO_MAP.get(tipo_orig)
-    if not tipo_nc:
-        return jsonify({'error': f'No se puede emitir NC para tipo {tipo_orig}'}), 400
+    tipo_nuevo = tipo_map.get(tipo_orig)
+    if not tipo_nuevo:
+        return jsonify({'error': f'No se puede emitir {label} para tipo {tipo_orig}'}), 400
 
     cert_path = empresa.get('cert', '')
     key_path  = empresa.get('key', '')
@@ -665,54 +665,80 @@ def api_nota_credito():
         auth_data   = {'Token': token, 'Sign': sign, 'Cuit': int(empresa['cuit'])}
         client      = wsfe.get_client(wsfe_wsdl)
 
-        pv     = int(orig.get('punto_venta', 0))
-        ultimo = wsfe.get_ultimo_comprobante(client, auth_data, pv, tipo_nc)
-        nro    = ultimo + 1
+        pv         = int(orig.get('punto_venta', 0))
+        ultimo     = wsfe.get_ultimo_comprobante(client, auth_data, pv, tipo_nuevo)
+        nro        = ultimo + 1
+        fecha_str  = datetime.today().strftime('%Y%m%d')
 
-        fecha_str = datetime.today().strftime('%Y%m%d')
         comp = {c: orig.get(c, '') for c in COLUMNAS}
-        comp['tipo_cbte'] = tipo_nc
+        comp['tipo_cbte'] = tipo_nuevo
         comp['fecha']     = fecha_str
 
         cbtes_asoc = [{'tipo': tipo_orig, 'pv': pv, 'nro': int(orig.get('nro_cbte', 0))}]
 
         result = wsfe.procesar_comprobante(
-            client, auth_data, empresa['cuit'], pv, tipo_nc, comp, nro, cbtes_asoc=cbtes_asoc
+            client, auth_data, empresa['cuit'], pv, tipo_nuevo, comp, nro, cbtes_asoc=cbtes_asoc
         )
         det = result.FeDetResp.FECAEDetResponse[0]
 
         if det.Resultado != 'A':
             obs = '; '.join(o.Msg for o in det.Observaciones.Obs) if det.Observaciones else ''
-            return jsonify({'error': f'AFIP rechazó la NC: {obs}'}), 400
+            return jsonify({'error': f'AFIP rechazó el comprobante: {obs}'}), 400
 
         res_data = {'fila': 2, 'nro': nro, 'resultado': 'APROBADO',
                     'cae': det.CAE, 'vto_cae': str(det.CAEFchVto), 'obs': ''}
 
-        # Guardar en el Excel del mes actual
         import tempfile
         tmp = tempfile.mktemp(suffix='.xlsx')
         try:
-            df_nc = pd.DataFrame([{c: comp.get(c, '') for c in COLUMNAS}])
+            df_nuevo = pd.DataFrame([{c: comp.get(c, '') for c in COLUMNAS}])
             with pd.ExcelWriter(tmp, engine='openpyxl') as w:
-                df_nc.to_excel(w, index=False)
-            dest_path = _resultado_path_actual(empresa_id)
-            _guardar_resultado(tmp, dest_path, [res_data])
+                df_nuevo.to_excel(w, index=False)
+            _guardar_resultado(tmp, _resultado_path_actual(empresa_id), [res_data])
         finally:
             if os.path.exists(tmp):
                 os.unlink(tmp)
 
         return jsonify({
             'ok':      True,
-            'tipo_nc': tipo_nc,
-            'nombre':  TIPO_NOMBRE.get(tipo_nc, f'Tipo {tipo_nc}'),
+            'tipo':    tipo_nuevo,
+            'nombre':  TIPO_NOMBRE.get(tipo_nuevo, f'Tipo {tipo_nuevo}'),
             'nro':     nro,
             'cae':     det.CAE,
             'vto_cae': str(det.CAEFchVto),
         })
 
     except Exception as e:
-        print(f"\n=== ERROR /api/nota-credito ===\n{traceback.format_exc()}\n=====\n")
+        print(f"\n=== ERROR {label} ===\n{traceback.format_exc()}\n=====\n")
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/nota-credito', methods=['POST'])
+@login_required
+def api_nota_credito():
+    user = _get_current_user()
+    d    = request.get_json(force=True)
+    return _emitir_comprobante_asociado(
+        NC_TIPO_MAP, 'NC',
+        d.get('empresa_id', '').strip(),
+        d.get('mes', '').strip(),
+        int(d.get('fila', 0)),
+        user,
+    )
+
+
+@app.route('/api/nota-debito', methods=['POST'])
+@login_required
+def api_nota_debito():
+    user = _get_current_user()
+    d    = request.get_json(force=True)
+    return _emitir_comprobante_asociado(
+        ND_TIPO_MAP, 'ND',
+        d.get('empresa_id', '').strip(),
+        d.get('mes', '').strip(),
+        int(d.get('fila', 0)),
+        user,
+    )
 
 
 @app.route('/descargar')
