@@ -12,7 +12,7 @@ from flask import (Flask, jsonify, redirect, render_template,
                    request, send_file, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 import pandas as pd
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
 from openpyxl.styles import PatternFill
 
 import config
@@ -504,30 +504,41 @@ def procesar():
 
 
 def _guardar_resultado(src_path: str, dest_path: str, resultados: list):
-    wb = load_workbook(src_path)
-    ws = wb.active
-    lc = ws.max_column + 1
-
-    for i, h in enumerate(['Nro_Cbte', 'Resultado', 'CAE', 'Vto_CAE', 'Observaciones']):
-        ws.cell(1, lc + i, h)
-
+    RES_HEADERS = ['Nro_Cbte', 'Resultado', 'CAE', 'Vto_CAE', 'Observaciones']
     verde    = PatternFill(fill_type='solid', fgColor='C6EFCE')
     rojo     = PatternFill(fill_type='solid', fgColor='FFC7CE')
     amarillo = PatternFill(fill_type='solid', fgColor='FFEB9C')
 
-    for r in resultados:
-        rn   = r['fila']
-        fill = verde if r['resultado'] == 'APROBADO' else (
-               rojo  if r['resultado'] == 'RECHAZADO' else amarillo)
-        ws.cell(rn, lc,     r['nro'])
-        ws.cell(rn, lc + 1, r['resultado'])
-        ws.cell(rn, lc + 2, r['cae'])
-        ws.cell(rn, lc + 3, r['vto_cae'])
-        ws.cell(rn, lc + 4, r['obs'])
-        for col in range(1, lc + 5):
-            ws.cell(rn, col).fill = fill
+    wb_src = load_workbook(src_path)
+    ws_src = wb_src.active
+    n_src_cols = ws_src.max_column
 
-    wb.save(dest_path)
+    # Cargar destino existente o crear uno nuevo con encabezados
+    if os.path.exists(dest_path):
+        wb_dest = load_workbook(dest_path)
+        ws_dest = wb_dest.active
+    else:
+        wb_dest = Workbook()
+        ws_dest = wb_dest.active
+        src_headers = [ws_src.cell(1, c).value for c in range(1, n_src_cols + 1)]
+        for i, h in enumerate(src_headers + RES_HEADERS, 1):
+            ws_dest.cell(1, i, h)
+
+    result_map = {r['fila']: r for r in resultados}
+
+    for row_idx in range(2, ws_src.max_row + 1):
+        r    = result_map.get(row_idx, {})
+        res  = r.get('resultado', '')
+        fill = verde if res == 'APROBADO' else (rojo if res == 'RECHAZADO' else amarillo)
+
+        src_vals = [ws_src.cell(row_idx, c).value for c in range(1, n_src_cols + 1)]
+        res_vals = [r.get('nro', ''), res, r.get('cae', ''), r.get('vto_cae', ''), r.get('obs', '')]
+
+        new_row = ws_dest.max_row + 1
+        for col_idx, val in enumerate(src_vals + res_vals, 1):
+            ws_dest.cell(new_row, col_idx, val).fill = fill
+
+    wb_dest.save(dest_path)
 
 
 @app.route('/api/resultados-mes')
