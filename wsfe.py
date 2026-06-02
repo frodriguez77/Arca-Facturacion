@@ -47,7 +47,7 @@ def get_ultimo_comprobante(client, auth, punto_venta, tipo_cbte):
     return result.CbteNro
 
 
-def procesar_comprobante(client, auth, cuit, punto_venta, tipo_cbte, comp, nro):
+def procesar_comprobante(client, auth, cuit, punto_venta, tipo_cbte, comp, nro, cbtes_asoc=None):
     alicuota  = float(comp.get('alicuota', 21))
     imp_neto  = round(float(comp['imp_neto']), 2)
     imp_iva   = round(float(comp['imp_iva']),  2)
@@ -105,6 +105,12 @@ def procesar_comprobante(client, auth, cuit, punto_venta, tipo_cbte, comp, nro):
         det['Iva'] = {
             'AlicIva': [{'Id': ALICUOTA_ID[alicuota], 'BaseImp': imp_neto, 'Importe': imp_iva}]
         }
+
+    if cbtes_asoc:
+        det['CbtesAsoc'] = {'CbteAsoc': [
+            {'Tipo': a['tipo'], 'PtoVta': a['pv'], 'Nro': a['nro'], 'Cuit': int(cuit)}
+            for a in cbtes_asoc
+        ]}
 
     req = {
         'FeCabReq': {'CantReg': 1, 'PtoVta': punto_venta, 'CbteTipo': tipo_cbte},

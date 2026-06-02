@@ -35,6 +35,26 @@ COLUMNAS = [
     'fecha', 'imp_neto', 'alicuota', 'imp_iva', 'imp_total',
 ]
 
+NC_TIPO_MAP = {
+    1: 3,   2: 3,    # Factura/ND A  → NC A
+    6: 8,   7: 8,    # Factura/ND B  → NC B
+    11: 13, 12: 13,  # Factura/ND C  → NC C
+    51: 53, 52: 53,  # Factura/ND M  → NC M
+    201: 203, 202: 203,
+    206: 208, 207: 208,
+    211: 213, 212: 213,
+}
+
+TIPO_NOMBRE = {
+    1: 'Factura A',       2: 'Nota de Débito A',  3: 'Nota de Crédito A',
+    6: 'Factura B',       7: 'Nota de Débito B',  8: 'Nota de Crédito B',
+    11: 'Factura C',      12: 'Nota de Débito C', 13: 'Nota de Crédito C',
+    51: 'Factura M',      52: 'Nota de Débito M', 53: 'Nota de Crédito M',
+    201: 'FCE A',         203: 'NCE A',
+    206: 'FCE B',         208: 'NCE B',
+    211: 'FCE C',         213: 'NCE C',
+}
+
 os.makedirs(UPLOAD, exist_ok=True)
 os.makedirs(CERTS,  exist_ok=True)
 
@@ -597,6 +617,101 @@ def api_resultados_mes():
             },
         })
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/nota-credito', methods=['POST'])
+@login_required
+def api_nota_credito():
+    user       = _get_current_user()
+    data       = request.get_json(force=True)
+    empresa_id = data.get('empresa_id', '').strip()
+    mes_orig   = data.get('mes', '').strip()
+    fila       = int(data.get('fila', 0))
+
+    empresa = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 400
+    if not _user_can_access(user, empresa_id):
+        return jsonify({'error': 'Acceso denegado'}), 403
+
+    result_path = _resultado_path(empresa_id, mes_orig)
+    if not os.path.exists(result_path):
+        return jsonify({'error': 'No se encontraron resultados para ese mes'}), 400
+
+    df = pd.read_excel(result_path)
+    df.columns = [c.lower().strip().replace(' ', '_') for c in df.columns]
+    idx = fila - 2
+    if idx < 0 or idx >= len(df):
+        return jsonify({'error': 'Fila no encontrada'}), 400
+
+    orig     = df.iloc[idx].to_dict()
+    tipo_orig = int(orig.get('tipo_cbte', 0))
+    tipo_nc   = NC_TIPO_MAP.get(tipo_orig)
+    if not tipo_nc:
+        return jsonify({'error': f'No se puede emitir NC para tipo {tipo_orig}'}), 400
+
+    cert_path = empresa.get('cert', '')
+    key_path  = empresa.get('key', '')
+    if not os.path.isfile(cert_path):
+        return jsonify({'error': f'Certificado no encontrado: {cert_path}'}), 400
+    if not os.path.isfile(key_path):
+        return jsonify({'error': f'Clave no encontrada: {key_path}'}), 400
+
+    wsaa_url, wsfe_wsdl = _empresa_urls(empresa)
+
+    try:
+        token, sign = wsaa.get_ticket('wsfe', cert_path, key_path, wsaa_url, empresa['cuit'])
+        auth_data   = {'Token': token, 'Sign': sign, 'Cuit': int(empresa['cuit'])}
+        client      = wsfe.get_client(wsfe_wsdl)
+
+        pv     = int(orig.get('punto_venta', 0))
+        ultimo = wsfe.get_ultimo_comprobante(client, auth_data, pv, tipo_nc)
+        nro    = ultimo + 1
+
+        fecha_str = datetime.today().strftime('%Y%m%d')
+        comp = {c: orig.get(c, '') for c in COLUMNAS}
+        comp['tipo_cbte'] = tipo_nc
+        comp['fecha']     = fecha_str
+
+        cbtes_asoc = [{'tipo': tipo_orig, 'pv': pv, 'nro': int(orig.get('nro_cbte', 0))}]
+
+        result = wsfe.procesar_comprobante(
+            client, auth_data, empresa['cuit'], pv, tipo_nc, comp, nro, cbtes_asoc=cbtes_asoc
+        )
+        det = result.FeDetResp.FECAEDetResponse[0]
+
+        if det.Resultado != 'A':
+            obs = '; '.join(o.Msg for o in det.Observaciones.Obs) if det.Observaciones else ''
+            return jsonify({'error': f'AFIP rechazó la NC: {obs}'}), 400
+
+        res_data = {'fila': 2, 'nro': nro, 'resultado': 'APROBADO',
+                    'cae': det.CAE, 'vto_cae': str(det.CAEFchVto), 'obs': ''}
+
+        # Guardar en el Excel del mes actual
+        import tempfile
+        tmp = tempfile.mktemp(suffix='.xlsx')
+        try:
+            df_nc = pd.DataFrame([{c: comp.get(c, '') for c in COLUMNAS}])
+            with pd.ExcelWriter(tmp, engine='openpyxl') as w:
+                df_nc.to_excel(w, index=False)
+            dest_path = _resultado_path_actual(empresa_id)
+            _guardar_resultado(tmp, dest_path, [res_data])
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+
+        return jsonify({
+            'ok':      True,
+            'tipo_nc': tipo_nc,
+            'nombre':  TIPO_NOMBRE.get(tipo_nc, f'Tipo {tipo_nc}'),
+            'nro':     nro,
+            'cae':     det.CAE,
+            'vto_cae': str(det.CAEFchVto),
+        })
+
+    except Exception as e:
+        print(f"\n=== ERROR /api/nota-credito ===\n{traceback.format_exc()}\n=====\n")
         return jsonify({'error': str(e)}), 500
 
 

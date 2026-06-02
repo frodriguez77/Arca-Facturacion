@@ -157,6 +157,25 @@
 
 </div>
 
+<!-- Modal Nota de Crédito -->
+<div class="modal fade" id="modal-nc" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-warning-subtle">
+        <h5 class="modal-title"><i class="bi bi-arrow-counterclockwise"></i> Emitir Nota de Crédito</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="modal-nc-body"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-warning" id="btn-confirmar-nc">
+          <i class="bi bi-send-fill"></i> Emitir Nota de Crédito
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 let graficoInstancia = null;
@@ -293,10 +312,16 @@ function renderTabla(registros, totales) {
       <td class="num fw-semibold">${fmt(r.imp_total)}</td>
       <td><code class="small">${r.cae}</code></td>
       <td>
-        <a href="/pdf/${r.empresa_id}/${r.fila}?mes=${r.mes}" target="_blank"
-           class="btn btn-sm btn-outline-danger py-0">
-          <i class="bi bi-file-earmark-pdf"></i> PDF
-        </a>
+        <div class="d-flex gap-1">
+          <a href="/pdf/${r.empresa_id}/${r.fila}?mes=${r.mes}" target="_blank"
+             class="btn btn-sm btn-outline-danger py-0">
+            <i class="bi bi-file-earmark-pdf"></i>
+          </a>
+          <button class="btn btn-sm btn-outline-warning py-0"
+                  onclick="abrirNC('${r.empresa_id}','${r.mes}',${r.fila},${r.nro_cbte},'${r.cae}','${r.vto_cae}')">
+            <i class="bi bi-arrow-counterclockwise"></i> NC
+          </button>
+        </div>
       </td>
     </tr>`
   ).join('');
@@ -325,6 +350,49 @@ document.getElementById('btn-exportar').addEventListener('click', () => {
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
+// --- Nota de Crédito --------------------------------------------------------
+let ncPendiente = null;
+
+function abrirNC(empresaId, mes, fila, nro, cae, vtoCAE) {
+  ncPendiente = { empresaId, mes, fila };
+  document.getElementById('modal-nc-body').innerHTML = `
+    <p>Se va a emitir una <strong>Nota de Crédito</strong> para revertir:</p>
+    <table class="table table-sm table-bordered">
+      <tr><td class="fw-semibold">Nro</td><td>${nro}</td></tr>
+      <tr><td class="fw-semibold">CAE</td><td><code>${cae}</code></td></tr>
+      <tr><td class="fw-semibold">Vto CAE</td><td>${vtoCAE}</td></tr>
+    </table>
+    <div class="alert alert-warning py-2 mb-0">
+      <i class="bi bi-exclamation-triangle"></i>
+      Esta acción emite un comprobante real en AFIP. ¿Confirmar?
+    </div>`;
+  new bootstrap.Modal(document.getElementById('modal-nc')).show();
+}
+
+document.getElementById('btn-confirmar-nc').addEventListener('click', async () => {
+  if (!ncPendiente) return;
+  const btn = document.getElementById('btn-confirmar-nc');
+  btn.disabled = true; btn.textContent = 'Procesando...';
+  try {
+    const resp = await fetch('/api/nota-credito', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ empresa_id: ncPendiente.empresaId, mes: ncPendiente.mes, fila: ncPendiente.fila }),
+    });
+    const data = await resp.json();
+    bootstrap.Modal.getInstance(document.getElementById('modal-nc')).hide();
+    if (data.error) {
+      alert('Error: ' + data.error);
+    } else {
+      alert(`✔ ${data.nombre} emitida correctamente.\nNro: ${data.nro}\nCAE: ${data.cae}\nVto: ${data.vto_cae}`);
+    }
+  } catch (e) {
+    alert('Error: ' + e);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Emitir Nota de Crédito'; ncPendiente = null;
+  }
+});
 </script>
 </body>
 </html>
