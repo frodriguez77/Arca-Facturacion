@@ -184,7 +184,7 @@
         <table class="table table-sm align-middle">
           <thead class="table-dark">
             <tr>
-              <th>Fila</th><th>Nro</th><th>Resultado</th>
+              <th>Fila</th><th>Tipo</th><th>Nro</th><th>Resultado</th>
               <th>CAE</th><th>Vto CAE</th><th>Obs</th><th></th>
             </tr>
           </thead>
@@ -404,26 +404,30 @@ function renderResultados(data) {
   document.getElementById('r-err').textContent   = data.resumen.rechazados;
   document.getElementById('btn-descargar').href  = `/descargar?empresa_id=${empresaActual.id}&mes=${mesActual}`;
 
+  const tipoBadge = { factura: 'bg-primary', nc: 'bg-danger', nd: 'bg-warning text-dark' };
+
   document.getElementById('tbody-result').innerHTML = data.resultados.map((r, idx) => {
-    const cls    = r.resultado === 'APROBADO' ? 'badge-ok' : r.resultado === 'RECHAZADO' ? 'badge-err' : 'badge-warn';
-    const btns = r.resultado === 'APROBADO'
-      ? `<div class="d-flex gap-1">
-           <button class="btn btn-sm btn-outline-danger py-0" title="Ver PDF" onclick="imprimirPDF(${idx})">
-             <i class="bi bi-file-earmark-pdf"></i>
-           </button>
-           <button class="btn btn-sm btn-outline-info py-0" title="Enviar por email" onclick="abrirEmail(${idx})">
-             <i class="bi bi-envelope"></i>
-           </button>
-           <button class="btn btn-sm btn-outline-warning py-0" title="Nota de Crédito" onclick="abrirAsociado('nc',${idx})">
-             <i class="bi bi-arrow-counterclockwise"></i> NC
-           </button>
-           <button class="btn btn-sm btn-outline-primary py-0" title="Nota de Débito" onclick="abrirAsociado('nd',${idx})">
-             <i class="bi bi-plus-circle"></i> ND
-           </button>
-         </div>`
-      : '';
+    const cls      = r.resultado === 'APROBADO' ? 'badge-ok' : r.resultado === 'RECHAZADO' ? 'badge-err' : 'badge-warn';
+    const grupo    = r.tipo_grupo || 'factura';
+    const tipoBadgeClass = tipoBadge[grupo] || 'bg-secondary';
+    const tipoLabel = r.tipo_nombre || '';
+
+    let btns = '';
+    if (r.resultado === 'APROBADO') {
+      const btnPdf   = `<button class="btn btn-sm btn-outline-danger py-0" title="Ver PDF" onclick="imprimirPDF(${idx})"><i class="bi bi-file-earmark-pdf"></i></button>`;
+      const btnEmail = `<button class="btn btn-sm btn-outline-info py-0" title="Enviar por email" onclick="abrirEmail(${idx})"><i class="bi bi-envelope"></i></button>`;
+      const btnNC    = grupo !== 'nc'
+        ? `<button class="btn btn-sm btn-outline-warning py-0" title="Nota de Crédito" onclick="abrirAsociado('nc',${idx})"><i class="bi bi-arrow-counterclockwise"></i> NC</button>`
+        : '';
+      const btnND    = grupo === 'factura'
+        ? `<button class="btn btn-sm btn-outline-primary py-0" title="Nota de Débito" onclick="abrirAsociado('nd',${idx})"><i class="bi bi-plus-circle"></i> ND</button>`
+        : '';
+      btns = `<div class="d-flex gap-1">${btnPdf}${btnEmail}${btnNC}${btnND}</div>`;
+    }
+
     return `<tr>
       <td>${r.fila}</td>
+      <td>${tipoLabel ? `<span class="badge ${tipoBadgeClass}">${tipoLabel}</span>` : '-'}</td>
       <td>${r.nro || '-'}</td>
       <td><span class="badge ${cls} px-2 py-1">${r.resultado}</span></td>
       <td><code class="small">${r.cae || '-'}</code></td>

@@ -640,13 +640,18 @@ def api_resultados_mes():
             res = str(row.get('resultado', '')).upper()
             if res not in ('APROBADO', 'RECHAZADO', 'ERROR'):
                 continue
+                t     = int(row.get('tipo_cbte', 0))
+            grupo = _tipo_grupo(t)
             resultados.append({
-                'fila':      int(idx) + 2,
-                'nro':       int(row.get('nro_cbte', 0)) if res == 'APROBADO' else 0,
-                'resultado': 'APROBADO' if res == 'APROBADO' else res,
-                'cae':       str(row.get('cae', '')) if res == 'APROBADO' else '',
-                'vto_cae':   str(row.get('vto_cae', '')) if res == 'APROBADO' else '',
-                'obs':       str(row.get('observaciones', '')),
+                'fila':       int(idx) + 2,
+                'nro':        int(row.get('nro_cbte', 0)) if res == 'APROBADO' else 0,
+                'resultado':  'APROBADO' if res == 'APROBADO' else res,
+                'cae':        str(row.get('cae', '')) if res == 'APROBADO' else '',
+                'vto_cae':    str(row.get('vto_cae', '')) if res == 'APROBADO' else '',
+                'obs':        str(row.get('observaciones', '')),
+                'tipo_cbte':  t,
+                'tipo_nombre': TIPO_NOMBRE.get(t, f'Tipo {t}') if t else '',
+                'tipo_grupo': grupo,
             })
         aprobados = sum(1 for r in resultados if r['resultado'] == 'APROBADO')
         return jsonify({
