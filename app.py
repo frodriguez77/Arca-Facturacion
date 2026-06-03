@@ -1081,8 +1081,19 @@ def generar_csr():
 
 # ---------- reportes ---------------------------------------------------------
 
-def _leer_registros_reporte(empresa_id: str, desde: str, hasta: str, cliente: str) -> list[dict]:
-    """Lee todos los resultados de una empresa filtrando por mes y cliente."""
+_TIPOS_FACTURA = {1, 6, 11, 51, 201, 206, 211}
+_TIPOS_NC      = {3, 8, 13, 53, 203, 208, 213}
+_TIPOS_ND      = {2, 7, 12, 52, 202, 207, 212}
+
+def _tipo_grupo(tipo_cbte: int) -> str:
+    if tipo_cbte in _TIPOS_NC:      return 'nc'
+    if tipo_cbte in _TIPOS_ND:      return 'nd'
+    if tipo_cbte in _TIPOS_FACTURA: return 'factura'
+    return 'factura'
+
+def _leer_registros_reporte(empresa_id: str, desde: str, hasta: str,
+                             cliente: str, tipo: str = '') -> list[dict]:
+    """Lee todos los resultados de una empresa filtrando por mes, cliente y tipo."""
     empresa = EmpresaRepository.get_by_id(empresa_id)
     if not empresa:
         return []
@@ -1113,6 +1124,10 @@ def _leer_registros_reporte(empresa_id: str, desde: str, hasta: str, cliente: st
                 razon = str(row.get('razon_social', ''))
                 if cliente and cliente.lower() not in razon.lower():
                     continue
+                t = int(row.get('tipo_cbte', 0))
+                grupo = _tipo_grupo(t)
+                if tipo and grupo != tipo:
+                    continue
                 registros.append({
                     'mes':          mes,
                     'fila':         int(idx) + 2,
@@ -1121,11 +1136,14 @@ def _leer_registros_reporte(empresa_id: str, desde: str, hasta: str, cliente: st
                     'razon_social': razon,
                     'punto_venta':  int(row.get('punto_venta', 0)),
                     'nro_cbte':     int(row.get('nro_cbte', 0)),
-                    'tipo_cbte':    int(row.get('tipo_cbte', 0)),
+                    'tipo_cbte':    t,
+                    'tipo_nombre':  TIPO_NOMBRE.get(t, f'Tipo {t}'),
+                    'tipo_grupo':   grupo,
                     'imp_neto':     float(row.get('imp_neto', 0)),
                     'imp_iva':      float(row.get('imp_iva', 0)),
                     'imp_total':    float(row.get('imp_total', 0)),
                     'cae':          str(row.get('cae', '')),
+                    'vto_cae':      str(row.get('vto_cae', '')),
                 })
         except Exception as e:
             print(f"Error leyendo {path}: {e}")
@@ -1154,6 +1172,7 @@ def api_reportes():
     desde      = request.args.get('desde', '').strip()
     hasta      = request.args.get('hasta', '').strip()
     cliente    = request.args.get('cliente', '').strip()
+    tipo       = request.args.get('tipo', '').strip()
 
     empresa = EmpresaRepository.get_by_id(empresa_id)
     if not empresa:
@@ -1161,18 +1180,29 @@ def api_reportes():
     if not _user_can_access(user, empresa_id):
         return jsonify({'error': 'Acceso denegado'}), 403
 
-    registros = _leer_registros_reporte(empresa_id, desde, hasta, cliente)
+    registros = _leer_registros_reporte(empresa_id, desde, hasta, cliente, tipo)
 
-    # Totales
-    monto_total = sum(r['imp_total'] for r in registros)
+    # Totales por grupo
+    sum_fc = sum(r['imp_total'] for r in registros if r['tipo_grupo'] == 'factura')
+    sum_nc = sum(r['imp_total'] for r in registros if r['tipo_grupo'] == 'nc')
+    sum_nd = sum(r['imp_total'] for r in registros if r['tipo_grupo'] == 'nd')
+    monto_neto = round(sum_fc - sum_nc + sum_nd, 2)
+
+    # Totales por mes (usando el neto: facturas - NC + ND)
     por_mes: dict[str, float] = {}
     for r in registros:
-        por_mes[r['mes']] = round(por_mes.get(r['mes'], 0) + r['imp_total'], 2)
+        signo = -1 if r['tipo_grupo'] == 'nc' else 1
+        por_mes[r['mes']] = round(por_mes.get(r['mes'], 0) + r['imp_total'] * signo, 2)
 
     return jsonify({
         'registros': registros,
-        'totales':   {'cantidad': len(registros), 'monto': round(monto_total, 2)},
-        'por_mes':   por_mes,
+        'totales': {
+            'cantidad':    len(registros),
+            'monto':       round(sum_fc + sum_nd, 2),
+            'monto_nc':    round(sum_nc, 2),
+            'monto_neto':  monto_neto,
+        },
+        'por_mes': por_mes,
     })
 
 
@@ -1184,6 +1214,7 @@ def api_reportes_exportar():
     desde      = request.args.get('desde', '').strip()
     hasta      = request.args.get('hasta', '').strip()
     cliente    = request.args.get('cliente', '').strip()
+    tipo       = request.args.get('tipo', '').strip()
 
     empresa = EmpresaRepository.get_by_id(empresa_id)
     if not empresa:
@@ -1191,7 +1222,7 @@ def api_reportes_exportar():
     if not _user_can_access(user, empresa_id):
         return 'Acceso denegado', 403
 
-    registros = _leer_registros_reporte(empresa_id, desde, hasta, cliente)
+    registros = _leer_registros_reporte(empresa_id, desde, hasta, cliente, tipo)
     if not registros:
         return 'No hay datos para exportar', 404
 

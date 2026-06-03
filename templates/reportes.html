@@ -73,12 +73,21 @@
           <label class="form-label fw-semibold">Hasta</label>
           <input type="month" class="form-control" id="f-hasta" value="{{ mes_hasta }}">
         </div>
+        <div class="col-12 col-md-2">
+          <label class="form-label fw-semibold">Tipo</label>
+          <select class="form-select" id="f-tipo">
+            <option value="">Todos</option>
+            <option value="factura">Solo Facturas</option>
+            <option value="nc">Solo NC (Notas de Crédito)</option>
+            <option value="nd">Solo ND (Notas de Débito)</option>
+          </select>
+        </div>
         <div class="col-12 col-md-3">
           <label class="form-label fw-semibold">Cliente</label>
           <input type="text" class="form-control" id="f-cliente"
                  placeholder="Buscar por nombre...">
         </div>
-        <div class="col-12 col-md-2 d-flex gap-2">
+        <div class="col-12 col-md-2 d-flex gap-2 align-items-end">
           <button class="btn btn-primary flex-grow-1" id="btn-buscar">
             <i class="bi bi-search"></i> Buscar
           </button>
@@ -89,22 +98,28 @@
 
   <!-- Tarjetas de totales -->
   <div class="row g-3 mb-4" id="stats" style="display:none!important">
-    <div class="col-12 col-md-4">
+    <div class="col-6 col-md-3">
       <div class="stat-card card text-center">
-        <div class="text-muted small mb-1">Comprobantes aprobados</div>
-        <div class="fs-1 fw-bold text-primary" id="stat-cantidad">-</div>
+        <div class="text-muted small mb-1">Comprobantes</div>
+        <div class="fs-2 fw-bold text-primary" id="stat-cantidad">-</div>
       </div>
     </div>
-    <div class="col-12 col-md-4">
+    <div class="col-6 col-md-3">
       <div class="stat-card card text-center">
-        <div class="text-muted small mb-1">Total facturado</div>
-        <div class="fs-1 fw-bold text-success" id="stat-monto">-</div>
+        <div class="text-muted small mb-1" id="stat-monto-label">Total facturado</div>
+        <div class="fs-2 fw-bold text-success" id="stat-monto">-</div>
       </div>
     </div>
-    <div class="col-12 col-md-4">
+    <div class="col-6 col-md-3" id="stat-nc-card">
       <div class="stat-card card text-center">
-        <div class="text-muted small mb-1">Promedio por comprobante</div>
-        <div class="fs-1 fw-bold text-info" id="stat-promedio">-</div>
+        <div class="text-muted small mb-1">Notas de Crédito</div>
+        <div class="fs-2 fw-bold text-danger" id="stat-nc">-</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3" id="stat-neto-card">
+      <div class="stat-card card text-center border-success">
+        <div class="text-muted small mb-1">Neto facturado</div>
+        <div class="fs-2 fw-bold text-success" id="stat-neto">-</div>
       </div>
     </div>
   </div>
@@ -126,6 +141,7 @@
               <th>Mes</th>
               <th>Fecha</th>
               <th>Cliente</th>
+              <th>Tipo</th>
               <th>PV</th>
               <th>Nro</th>
               <th class="num">Neto</th>
@@ -241,6 +257,7 @@ async function buscar() {
     empresa_id: empresa,
     desde:      document.getElementById('f-desde').value,
     hasta:      document.getElementById('f-hasta').value,
+    tipo:       document.getElementById('f-tipo').value,
     cliente:    document.getElementById('f-cliente').value.trim(),
   };
 
@@ -266,16 +283,26 @@ async function buscar() {
 
 function renderStats(totales) {
   const stats = document.getElementById('stats');
-  stats.style.display = '';
-  stats.style.removeProperty('display'); // quitar !important workaround
-  stats.classList.remove('d-none');
-  document.getElementById('stats').removeAttribute('style');
-  document.getElementById('stats').style.display = 'flex';
+  stats.removeAttribute('style');
+  stats.style.display = 'flex';
+
+  const tipo = document.getElementById('f-tipo').value;
 
   document.getElementById('stat-cantidad').textContent = totales.cantidad;
   document.getElementById('stat-monto').textContent    = fmt(totales.monto);
-  const prom = totales.cantidad > 0 ? totales.monto / totales.cantidad : 0;
-  document.getElementById('stat-promedio').textContent = fmt(prom);
+
+  if (tipo === '') {
+    // Mostrar NC y neto solo cuando se ven todos
+    document.getElementById('stat-monto-label').textContent = 'Facturas + ND';
+    document.getElementById('stat-nc-card').classList.remove('d-none');
+    document.getElementById('stat-neto-card').classList.remove('d-none');
+    document.getElementById('stat-nc').textContent   = fmt(totales.monto_nc);
+    document.getElementById('stat-neto').textContent = fmt(totales.monto_neto);
+  } else {
+    document.getElementById('stat-monto-label').textContent = 'Total';
+    document.getElementById('stat-nc-card').classList.add('d-none');
+    document.getElementById('stat-neto-card').classList.add('d-none');
+  }
 }
 
 function renderGrafico(porMes) {
@@ -334,16 +361,23 @@ function renderTabla(registros, totales) {
   }
   msgVacio.classList.add('d-none');
 
+  const tipoBadge = {
+    factura: 'bg-primary',
+    nc:      'bg-danger',
+    nd:      'bg-warning text-dark',
+  };
+
   tbody.innerHTML = registros.map(r => `
     <tr>
       <td><span class="badge bg-light text-dark border">${r.mes}</span></td>
       <td>${r.fecha}</td>
       <td>${escHtml(r.razon_social)}</td>
+      <td><span class="badge ${tipoBadge[r.tipo_grupo] || 'bg-secondary'}">${r.tipo_nombre}</span></td>
       <td class="text-center">${r.punto_venta.toString().padStart(4,'0')}</td>
       <td class="text-center">${r.nro_cbte.toString().padStart(8,'0')}</td>
       <td class="num">${fmt(r.imp_neto)}</td>
       <td class="num">${fmt(r.imp_iva)}</td>
-      <td class="num fw-semibold">${fmt(r.imp_total)}</td>
+      <td class="num fw-semibold ${r.tipo_grupo === 'nc' ? 'text-danger' : ''}">${fmt(r.imp_total)}</td>
       <td><code class="small">${r.cae}</code></td>
       <td>
         <div class="d-flex gap-1">
@@ -372,16 +406,27 @@ function renderTabla(registros, totales) {
   const sumNeto  = registros.reduce((a, r) => a + r.imp_neto,  0);
   const sumIva   = registros.reduce((a, r) => a + r.imp_iva,   0);
   const sumTotal = registros.reduce((a, r) => a + r.imp_total, 0);
+  const tipo     = document.getElementById('f-tipo').value;
+
+  let filaExtra = '';
+  if (tipo === '') {
+    filaExtra = `
+    <tr class="table-success">
+      <td colspan="6" class="text-end fw-semibold">NETO FACTURADO (Facturas + ND − NC)</td>
+      <td class="num fw-bold" colspan="2">${fmt(totales.monto_neto)}</td>
+      <td></td><td></td>
+    </tr>`;
+  }
 
   tfoot.innerHTML = `
     <tr>
-      <td colspan="5" class="text-end">TOTAL (${totales.cantidad} comprobantes)</td>
+      <td colspan="6" class="text-end">SUBTOTAL (${totales.cantidad} comprobantes)</td>
       <td class="num">${fmt(sumNeto)}</td>
       <td class="num">${fmt(sumIva)}</td>
-      <td class="num text-success">${fmt(sumTotal)}</td>
+      <td class="num">${fmt(sumTotal)}</td>
       <td></td>
       <td></td>
-    </tr>`;
+    </tr>${filaExtra}`;
 }
 
 document.getElementById('btn-exportar').addEventListener('click', () => {
