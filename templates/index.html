@@ -126,9 +126,14 @@
 
       <div id="upload-error" class="alert alert-danger mt-3 d-none"></div>
 
-      <button class="btn btn-outline-secondary btn-sm mt-3" id="btn-cambiar-empresa">
-        <i class="bi bi-arrow-left"></i> Cambiar empresa
-      </button>
+      <div class="mt-3 d-flex gap-2 flex-wrap">
+        <button class="btn btn-outline-secondary btn-sm" id="btn-cambiar-empresa">
+          <i class="bi bi-arrow-left"></i> Cambiar empresa
+        </button>
+        <button class="btn btn-outline-success btn-sm d-none" id="btn-ver-resultados">
+          <i class="bi bi-list-check"></i> Ver resultados del mes
+        </button>
+      </div>
     </div>
   </div>
 
@@ -157,7 +162,15 @@
   <!-- PASO 3 - Resultados -->
   <div class="card d-none" id="card-result">
     <div class="card-body p-4">
-      <h5 class="mb-4"><span class="step-num me-2">3</span>Resultados</h5>
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+        <h5 class="mb-0"><span class="step-num me-2">3</span>Resultados</h5>
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-calendar3 text-muted small"></i>
+          <select id="sel-mes" class="form-select form-select-sm" style="min-width:130px" title="Filtrar por mes">
+            <option value="">— mes —</option>
+          </select>
+        </div>
+      </div>
 
       <div class="row g-3 mb-4">
         <div class="col-4">
@@ -300,9 +313,9 @@ document.querySelectorAll('.empresa-card').forEach(card => {
   });
 });
 
-async function cargarResultadosMes() {
+async function cargarResultadosMes(mes = '') {
   try {
-    const resp = await fetch(`/api/resultados-mes?empresa_id=${empresaActual.id}`);
+    const resp = await fetch(`/api/resultados-mes?empresa_id=${empresaActual.id}&mes=${mes}`);
     const data = await resp.json();
     if (data.resultados && data.resultados.length > 0) {
       registrosData = [];
@@ -310,12 +323,29 @@ async function cargarResultadosMes() {
       renderResultados(data);
       document.getElementById('btn-descargar').href =
         `/descargar?empresa_id=${empresaActual.id}&mes=${mesActual}`;
-      hide('card-upload'); show('card-result');
+      hide('card-upload'); hide('card-preview'); show('card-result');
+      document.getElementById('btn-ver-resultados').classList.remove('d-none');
+      await cargarSelectorMeses();
     }
   } catch (e) {
     // Si falla silenciosamente, el usuario sube el Excel normalmente
   }
 }
+
+async function cargarSelectorMeses() {
+  try {
+    const resp = await fetch(`/api/meses-disponibles?empresa_id=${empresaActual.id}`);
+    const data = await resp.json();
+    const sel  = document.getElementById('sel-mes');
+    sel.innerHTML = data.meses.map(m =>
+      `<option value="${m}" ${m === mesActual ? 'selected' : ''}>${m}</option>`
+    ).join('');
+  } catch (e) { /* silencioso */ }
+}
+
+document.getElementById('sel-mes')?.addEventListener('change', function() {
+  if (this.value) cargarResultadosMes(this.value);
+});
 
 document.getElementById('btn-cambiar-empresa')?.addEventListener('click', () => {
   empresaActual = null;
@@ -403,6 +433,7 @@ function renderResultados(data) {
   document.getElementById('r-ok').textContent    = data.resumen.aprobados;
   document.getElementById('r-err').textContent   = data.resumen.rechazados;
   document.getElementById('btn-descargar').href  = `/descargar?empresa_id=${empresaActual.id}&mes=${mesActual}`;
+  document.getElementById('btn-ver-resultados').classList.remove('d-none');
 
   const tipoBadge = { factura: 'bg-primary', nc: 'bg-danger', nd: 'bg-warning text-dark' };
 
@@ -444,6 +475,9 @@ document.getElementById('btn-back')?.addEventListener('click', () => {
 document.getElementById('btn-nuevo')?.addEventListener('click', () => {
   hide('card-result'); show('card-upload'); fin.value = '';
   registrosData = [];
+});
+document.getElementById('btn-ver-resultados')?.addEventListener('click', () => {
+  hide('card-upload'); show('card-result');
 });
 
 // --- PDF por factura aprobada -----------------------------------------------

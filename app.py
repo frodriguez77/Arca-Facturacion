@@ -682,6 +682,26 @@ def api_resultados_mes():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/meses-disponibles')
+@login_required
+def api_meses_disponibles():
+    user       = _get_current_user()
+    empresa_id = request.args.get('empresa_id', '').strip()
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa or not _user_can_access(user, empresa_id):
+        return jsonify({'meses': []})
+    base_dir = os.path.join(UPLOAD, empresa['cuit'])
+    meses = []
+    if os.path.exists(base_dir):
+        meses = sorted([
+            d for d in os.listdir(base_dir)
+            if os.path.isdir(os.path.join(base_dir, d))
+            and re.match(r'\d{4}-\d{2}', d)
+            and os.path.exists(os.path.join(base_dir, d, 'facturas_resultado.xlsx'))
+        ], reverse=True)
+    return jsonify({'meses': meses})
+
+
 def _emitir_comprobante_asociado(tipo_map, label, empresa_id, mes_orig, fila, user):
     empresa = EmpresaRepository.get_by_id(empresa_id)
     if not empresa:
