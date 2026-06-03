@@ -30,6 +30,13 @@ BASE   = os.path.dirname(os.path.abspath(__file__))
 UPLOAD = os.path.join(BASE, 'uploads')
 CERTS  = os.path.join(BASE, 'certificados')
 
+_version_path = os.path.join(BASE, 'VERSION')
+APP_VERSION   = open(_version_path).read().strip() if os.path.exists(_version_path) else '—'
+
+@app.context_processor
+def _inject_version():
+    return {'app_version': APP_VERSION}
+
 COLUMNAS = [
     'punto_venta', 'tipo_cbte', 'concepto',
     'doc_tipo', 'doc_nro', 'razon_social',

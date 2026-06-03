@@ -219,6 +219,40 @@ Funciones JS clave:
 
 ---
 
+## Versionado
+
+El archivo `VERSION` (en la raíz) contiene la versión actual en formato `MAJOR.MINOR.PATCH`.
+
+```
+1.0.0   ← MAJOR.MINOR.PATCH
+│ │ └── Corrección de bug (sin features nuevas)
+│ └──── Feature nueva o mejora (no rompe nada existente)
+└────── Cambio estructural grande (rediseño, migración de datos)
+```
+
+**Cuándo subir la versión:**
+
+| Tipo de cambio | Qué hacer |
+|---|---|
+| Solo bugs corregidos | Incrementar PATCH: `1.0.0 → 1.0.1` |
+| Feature nueva / mejora visible | Incrementar MINOR: `1.0.0 → 1.1.0` |
+| Cambio estructural / breaking | Incrementar MAJOR: `1.0.0 → 2.0.0` |
+
+**Proceso para publicar una nueva versión:**
+
+1. Editar el archivo `VERSION` con el número nuevo (ej. `1.1.0`)
+2. Hacer commit: `git commit -am "Release v1.1.0"`
+3. Crear tag: `git tag v1.1.0`
+4. Push: `git push && git push --tags`
+5. El actualizador en la PC (`actualizar.ps1`) descarga el archivo `VERSION` y muestra el número al terminar.
+
+**La versión aparece en:**
+- Footer de cada pantalla (index, admin, reportes)
+- Mensaje de cierre de `actualizar.ps1`
+- Variable de Flask: `APP_VERSION` (inyectada vía context processor en todos los templates como `{{ app_version }}`)
+
+---
+
 ## Checklist antes de hacer un PR / push
 
 - [ ] ¿Rompí alguna funcionalidad existente?
@@ -228,3 +262,4 @@ Funciones JS clave:
 - [ ] ¿Toco logo/archivo? → Verificar path dentro de BASE
 - [ ] ¿Toco autenticación? → `_user_can_access` en todos los endpoints
 - [ ] ¿Python válido? → `python3 -c "import ast; ast.parse(open('app.py').read())"`
+- [ ] ¿Es una nueva versión? → Actualizar `VERSION` y crear tag git

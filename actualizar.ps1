@@ -46,6 +46,7 @@ if ($LASTEXITCODE -ne 0) {
 # Aplicar archivos
 Write-Host '  Aplicando archivos actualizados...'
 $archivos = @(
+    'VERSION',
     'app.py',
     'factura_pdf.py',
     'wsfe.py',
@@ -59,9 +60,11 @@ foreach ($f in $archivos) {
     Write-Host "  [OK] $f" -ForegroundColor Green
 }
 
+$version = if (Test-Path 'VERSION') { Get-Content 'VERSION' -Raw | ForEach-Object { $_.Trim() } } else { '?' }
+
 Write-Host ''
 Write-Host '  ==========================================' -ForegroundColor Green
-Write-Host '    Actualizacion completada!' -ForegroundColor Green
+Write-Host "    Actualizacion completada!  v$version" -ForegroundColor Green
 Write-Host '  ==========================================' -ForegroundColor Green
 Write-Host ''
 
