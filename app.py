@@ -76,7 +76,7 @@ os.makedirs(CERTS,  exist_ok=True)
 
 
 def _str_cae(v) -> str:
-    """Convierte CAE (int/float/str de Excel) a string limpio sin decimales."""
+    """Convierte CAE o fecha numérica (int/float/str de Excel) a string limpio sin decimales."""
     if not v and v != 0:
         return ''
     s = str(v).strip()
@@ -626,7 +626,7 @@ def _guardar_resultado(src_path: str, dest_path: str, resultados: list):
         fill = verde if res == 'APROBADO' else (rojo if res == 'RECHAZADO' else amarillo)
 
         src_vals = [ws_src.cell(row_idx, c).value for c in range(1, n_src_cols + 1)]
-        res_vals = [r.get('nro', ''), res, _str_cae(r.get('cae', '')), r.get('vto_cae', ''), r.get('obs', '')]
+        res_vals = [r.get('nro', ''), res, _str_cae(r.get('cae', '')), _str_cae(r.get('vto_cae', '')), r.get('obs', '')]
 
         new_row = ws_dest.max_row + 1
         for col_idx, val in enumerate(src_vals + res_vals, 1):
@@ -679,7 +679,7 @@ def api_resultados_mes():
                 'nro':        int(row.get('nro_cbte', 0)) if res == 'APROBADO' else 0,
                 'resultado':  'APROBADO' if res == 'APROBADO' else res,
                 'cae':        _str_cae(row.get('cae', '')) if res == 'APROBADO' else '',
-                'vto_cae':    str(row.get('vto_cae', '')) if res == 'APROBADO' else '',
+                'vto_cae':    _str_cae(row.get('vto_cae', '')) if res == 'APROBADO' else '',
                 'obs':        str(row.get('observaciones', '')),
                 'tipo_cbte':  t,
                 'tipo_nombre': TIPO_NOMBRE.get(t, f'Tipo {t}') if t else '',
@@ -976,7 +976,7 @@ def pdf_desde_resultado(empresa_id, fila):
         resultado = {
             'nro':     int(row.get('nro_cbte', 0)),
             'cae':     _str_cae(row.get('cae', '')),
-            'vto_cae': str(row.get('vto_cae', '')),
+            'vto_cae': _str_cae(row.get('vto_cae', '')),
         }
 
         pdf_buf = factura_pdf.generar_pdf(empresa, registro, resultado)
@@ -1118,7 +1118,7 @@ def api_enviar_factura():
         resultado = {
             'nro':     int(row.get('nro_cbte', 0)),
             'cae':     _str_cae(row.get('cae', '')),
-            'vto_cae': str(row.get('vto_cae', '')),
+            'vto_cae': _str_cae(row.get('vto_cae', '')),
         }
         pdf_buf  = factura_pdf.generar_pdf(empresa, registro, resultado)
         pv       = int(registro['punto_venta'])
@@ -1290,7 +1290,7 @@ def _leer_registros_reporte(empresa_id: str, desde: str, hasta: str,
                     'imp_iva':      float(row.get('imp_iva', 0)),
                     'imp_total':    float(row.get('imp_total', 0)),
                     'cae':          _str_cae(row.get('cae', '')),
-                    'vto_cae':      str(row.get('vto_cae', '')),
+                    'vto_cae':      _str_cae(row.get('vto_cae', '')),
                 })
         except Exception as e:
             print(f"Error leyendo {path}: {e}")
