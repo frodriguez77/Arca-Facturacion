@@ -133,6 +133,10 @@
         <button class="btn btn-outline-success btn-sm d-none" id="btn-ver-resultados">
           <i class="bi bi-list-check"></i> Ver resultados del mes
         </button>
+        <button class="btn btn-outline-dark btn-sm" id="btn-abrir-manual"
+                data-bs-toggle="modal" data-bs-target="#modal-manual">
+          <i class="bi bi-pencil-square"></i> Registrar factura manualmente
+        </button>
       </div>
     </div>
   </div>
@@ -269,6 +273,131 @@
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-info text-white" id="btn-enviar-email">
           <i class="bi bi-send-fill"></i> Enviar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Registrar Factura Manualmente -->
+<div class="modal fade" id="modal-manual" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title"><i class="bi bi-pencil-square"></i> Registrar comprobante ya aprobado en AFIP</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info py-2 small mb-3">
+          Usá este formulario para registrar en el sistema un comprobante que ya fue aprobado por AFIP pero que
+          no figura en los resultados (por ejemplo, porque el archivo se borró). Ingresá los datos tal como
+          aparecen en el comprobante.
+        </div>
+        <div id="manual-error" class="alert alert-danger d-none"></div>
+
+        <div class="row g-3">
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-semibold">Mes <span class="text-danger">*</span></label>
+            <input type="month" class="form-control" id="man-mes">
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-semibold">Tipo de comprobante <span class="text-danger">*</span></label>
+            <select class="form-select" id="man-tipo">
+              <option value="1">Factura A</option>
+              <option value="6" selected>Factura B</option>
+              <option value="11">Factura C</option>
+              <option value="51">Factura M</option>
+              <option value="3">Nota de Crédito A</option>
+              <option value="8">Nota de Crédito B</option>
+              <option value="13">Nota de Crédito C</option>
+              <option value="2">Nota de Débito A</option>
+              <option value="7">Nota de Débito B</option>
+              <option value="12">Nota de Débito C</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-semibold">Concepto</label>
+            <select class="form-select" id="man-concepto">
+              <option value="1">Productos</option>
+              <option value="2" selected>Honorarios / Servicios</option>
+              <option value="3">Productos y Servicios</option>
+            </select>
+          </div>
+
+          <div class="col-12 col-md-3">
+            <label class="form-label fw-semibold">Punto de venta <span class="text-danger">*</span></label>
+            <input type="number" class="form-control" id="man-pv" min="1" placeholder="Ej: 3">
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-semibold">Número de comprobante <span class="text-danger">*</span></label>
+            <input type="number" class="form-control" id="man-nro" min="1" placeholder="Ej: 125">
+          </div>
+          <div class="col-12 col-md-5">
+            <label class="form-label fw-semibold">Fecha del comprobante <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="man-fecha">
+          </div>
+
+          <div class="col-12 col-md-3">
+            <label class="form-label fw-semibold">Tipo doc.</label>
+            <select class="form-select" id="man-doc-tipo">
+              <option value="80">CUIT</option>
+              <option value="86">CUIL</option>
+              <option value="96">DNI</option>
+              <option value="99">Consumidor Final</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-semibold">Nro. documento</label>
+            <input type="text" class="form-control" id="man-doc-nro" placeholder="Ej: 20123456789">
+          </div>
+          <div class="col-12 col-md-5">
+            <label class="form-label fw-semibold">Razón social <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="man-razon" placeholder="Nombre o empresa del cliente">
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-semibold">Imp. Neto <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" class="form-control" id="man-neto" placeholder="0.00">
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-semibold">Alícuota IVA (%)</label>
+            <select class="form-select" id="man-alicuota">
+              <option value="21">21 %</option>
+              <option value="10.5">10.5 %</option>
+              <option value="27">27 %</option>
+              <option value="0">0 % (exento)</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-semibold">Imp. IVA</label>
+            <input type="number" step="0.01" class="form-control" id="man-iva" placeholder="Auto">
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">Imp. Total</label>
+            <input type="number" step="0.01" class="form-control" id="man-total" placeholder="Auto">
+          </div>
+
+          <hr class="my-1">
+
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">CAE <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="man-cae" placeholder="14 dígitos">
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold">Vencimiento CAE <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="man-vto-cae">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Observaciones</label>
+            <input type="text" class="form-control" id="man-obs" placeholder="Opcional">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-dark" id="btn-guardar-manual">
+          <i class="bi bi-floppy"></i> Registrar en el sistema
         </button>
       </div>
     </div>

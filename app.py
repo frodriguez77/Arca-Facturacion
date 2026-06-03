@@ -794,6 +794,85 @@ def _emitir_comprobante_asociado(tipo_map, label, empresa_id, mes_orig, fila, us
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/registrar-manual', methods=['POST'])
+@login_required
+def api_registrar_manual():
+    user       = _get_current_user()
+    data       = request.get_json(force=True)
+    empresa_id = (data.get('empresa_id') or '').strip()
+    mes        = (data.get('mes')        or _mes_actual()).strip()
+
+    empresa = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 400
+    if not _user_can_access(user, empresa_id):
+        return jsonify({'error': 'Acceso denegado'}), 403
+
+    cae     = (data.get('cae') or '').strip()
+    nro_cbte = data.get('nro_cbte')
+    if not cae:
+        return jsonify({'error': 'El CAE es obligatorio'}), 400
+    if not nro_cbte:
+        return jsonify({'error': 'El número de comprobante es obligatorio'}), 400
+
+    EXCEL_HEADERS = [
+        'punto_venta', 'tipo_cbte', 'concepto', 'doc_tipo', 'doc_nro', 'razon_social',
+        'fecha', 'imp_neto', 'alicuota', 'imp_iva', 'imp_total',
+        'Nro_Cbte', 'Resultado', 'CAE', 'Vto_CAE', 'Observaciones',
+    ]
+    verde = PatternFill(fill_type='solid', fgColor='C6EFCE')
+
+    dest_path = _resultado_path(empresa_id, mes)
+    if os.path.exists(dest_path):
+        wb = load_workbook(dest_path)
+        ws = wb.active
+    else:
+        wb = Workbook()
+        ws = wb.active
+        for i, h in enumerate(EXCEL_HEADERS, 1):
+            ws.cell(1, i, h)
+
+    fecha_raw = (data.get('fecha') or '').replace('-', '')     # YYYY-MM-DD → YYYYMMDD
+    vto_raw   = (data.get('vto_cae') or '').replace('-', '')
+
+    tipo_cbte = int(data.get('tipo_cbte', 1))
+    row_vals  = [
+        int(data.get('punto_venta', 1)),
+        tipo_cbte,
+        int(data.get('concepto', 2)),
+        int(data.get('doc_tipo', 80)),
+        (data.get('doc_nro') or '').strip(),
+        (data.get('razon_social') or '').strip(),
+        int(fecha_raw) if fecha_raw else '',
+        float(data.get('imp_neto', 0) or 0),
+        float(data.get('alicuota', 21) or 21),
+        float(data.get('imp_iva', 0) or 0),
+        float(data.get('imp_total', 0) or 0),
+        int(nro_cbte),
+        'APROBADO',
+        cae,
+        vto_raw,
+        (data.get('observaciones') or '').strip(),
+    ]
+
+    new_row = ws.max_row + 1
+    for col_idx, val in enumerate(row_vals, 1):
+        ws.cell(new_row, col_idx, val).fill = verde
+    wb.save(dest_path)
+
+    return jsonify({
+        'ok':          True,
+        'fila':        new_row,
+        'nro':         int(nro_cbte),
+        'cae':         cae,
+        'vto_cae':     vto_raw,
+        'tipo_cbte':   tipo_cbte,
+        'tipo_nombre': TIPO_NOMBRE.get(tipo_cbte, f'Tipo {tipo_cbte}'),
+        'tipo_grupo':  _tipo_grupo(tipo_cbte),
+        'mes':         mes,
+    })
+
+
 @app.route('/api/nota-credito', methods=['POST'])
 @login_required
 def api_nota_credito():
