@@ -776,6 +776,87 @@ document.getElementById('btn-enviar-email').addEventListener('click', async () =
     btn.innerHTML = '<i class="bi bi-send-fill"></i> Enviar';
   }
 });
+
+// --- Registrar factura manualmente ------------------------------------------
+
+// Pre-cargar mes actual al abrir el modal
+document.getElementById('btn-abrir-manual').addEventListener('click', () => {
+  const hoy = new Date();
+  document.getElementById('man-mes').value   = hoy.toISOString().slice(0, 7);
+  document.getElementById('man-fecha').value = hoy.toISOString().slice(0, 10);
+  document.getElementById('man-error').classList.add('d-none');
+});
+
+// Auto-calcular IVA y total cuando cambia neto o alícuota
+function recalcularImportes() {
+  const neto      = parseFloat(document.getElementById('man-neto').value)    || 0;
+  const alicuota  = parseFloat(document.getElementById('man-alicuota').value) || 0;
+  const iva       = Math.round(neto * alicuota / 100 * 100) / 100;
+  const total     = Math.round((neto + iva) * 100) / 100;
+  document.getElementById('man-iva').value   = iva   || '';
+  document.getElementById('man-total').value = total || '';
+}
+document.getElementById('man-neto').addEventListener('input',     recalcularImportes);
+document.getElementById('man-alicuota').addEventListener('change', recalcularImportes);
+
+document.getElementById('btn-guardar-manual').addEventListener('click', async () => {
+  const err = document.getElementById('man-error');
+  err.classList.add('d-none');
+
+  if (!empresaActual) { err.textContent = 'Seleccioná una empresa primero.'; err.classList.remove('d-none'); return; }
+
+  const cae = document.getElementById('man-cae').value.trim();
+  const nro = document.getElementById('man-nro').value.trim();
+  if (!cae || !nro) {
+    err.textContent = 'CAE y número de comprobante son obligatorios.';
+    err.classList.remove('d-none');
+    return;
+  }
+
+  const body = {
+    empresa_id:   empresaActual.id,
+    mes:          document.getElementById('man-mes').value,
+    tipo_cbte:    parseInt(document.getElementById('man-tipo').value),
+    concepto:     parseInt(document.getElementById('man-concepto').value),
+    punto_venta:  parseInt(document.getElementById('man-pv').value) || 1,
+    nro_cbte:     parseInt(nro),
+    fecha:        document.getElementById('man-fecha').value,
+    doc_tipo:     parseInt(document.getElementById('man-doc-tipo').value),
+    doc_nro:      document.getElementById('man-doc-nro').value.trim(),
+    razon_social: document.getElementById('man-razon').value.trim(),
+    imp_neto:     parseFloat(document.getElementById('man-neto').value)  || 0,
+    alicuota:     parseFloat(document.getElementById('man-alicuota').value) || 0,
+    imp_iva:      parseFloat(document.getElementById('man-iva').value)   || 0,
+    imp_total:    parseFloat(document.getElementById('man-total').value) || 0,
+    cae:          cae,
+    vto_cae:      document.getElementById('man-vto-cae').value,
+    observaciones: document.getElementById('man-obs').value.trim(),
+  };
+
+  const btn = document.getElementById('btn-guardar-manual');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Guardando...';
+
+  try {
+    const resp = await fetch('/api/registrar-manual', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (data.error) {
+      err.textContent = data.error; err.classList.remove('d-none');
+    } else {
+      bootstrap.Modal.getInstance(document.getElementById('modal-manual')).hide();
+      // Actualizar mesActual y recargar resultados
+      if (body.mes) mesActual = body.mes;
+      await cargarResultadosMes(body.mes);
+    }
+  } catch (e) {
+    err.textContent = 'Error de red: ' + e; err.classList.remove('d-none');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-floppy"></i> Registrar en el sistema';
+  }
+});
 </script>
 </body>
 </html>

@@ -231,8 +231,8 @@ def api_empresa_add():
     cert   = (data.get('cert')   or '').strip()
     key    = (data.get('key')    or '').strip()
 
-    if not nombre or not cuit or not cert or not key:
-        return jsonify({'error': 'Nombre, CUIT, certificado y clave son obligatorios'}), 400
+    if not nombre or not cuit:
+        return jsonify({'error': 'Nombre y CUIT son obligatorios'}), 400
     if not re.fullmatch(r'\d{11}', cuit):
         return jsonify({'error': 'El CUIT debe tener 11 dígitos sin guiones'}), 400
     if EmpresaRepository.cuit_exists(cuit):
@@ -274,8 +274,8 @@ def api_empresa_edit(empresa_id):
     cert   = (data.get('cert')   or '').strip()
     key    = (data.get('key')    or '').strip()
 
-    if not nombre or not cuit or not cert or not key:
-        return jsonify({'error': 'Nombre, CUIT, certificado y clave son obligatorios'}), 400
+    if not nombre or not cuit:
+        return jsonify({'error': 'Nombre y CUIT son obligatorios'}), 400
     if not re.fullmatch(r'\d{11}', cuit):
         return jsonify({'error': 'El CUIT debe tener 11 dígitos sin guiones'}), 400
     if EmpresaRepository.cuit_exists(cuit, exclude_id=empresa_id):

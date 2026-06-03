@@ -165,16 +165,16 @@
             <div class="form-text">Solo números, sin guiones ni espacios.</div>
           </div>
           <div class="col-12">
-            <label class="form-label fw-semibold">Ruta del certificado (.crt) <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" id="f-cert" required
+            <label class="form-label fw-semibold">Ruta del certificado (.crt)</label>
+            <input type="text" class="form-control" id="f-cert"
                    placeholder="{{ certs_dir }}\CUIT\CUIT.crt">
-            <div class="form-text">Se completa automáticamente al ingresar el CUIT.</div>
+            <div class="form-text">Requerido solo para emitir facturas a AFIP. Se completa automáticamente al ingresar el CUIT.</div>
           </div>
           <div class="col-12">
-            <label class="form-label fw-semibold">Ruta de la clave privada (.key) <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" id="f-key" required
+            <label class="form-label fw-semibold">Ruta de la clave privada (.key)</label>
+            <input type="text" class="form-control" id="f-key"
                    placeholder="{{ certs_dir }}\CUIT\CUIT_clave.key">
-            <div class="form-text">Se completa automáticamente al ingresar el CUIT.</div>
+            <div class="form-text">Requerido solo para emitir facturas a AFIP. Se completa automáticamente al ingresar el CUIT.</div>
           </div>
         </div>
 
