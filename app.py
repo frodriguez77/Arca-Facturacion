@@ -246,6 +246,12 @@ def api_empresa_add():
         'inicio_actividades': (data.get('inicio_actividades') or '').strip(),
         'matricula':          (data.get('matricula') or '').strip(),
         'logo_path':          (data.get('logo_path') or '').strip(),
+        'smtp_server':        (data.get('smtp_server')      or '').strip(),
+        'smtp_port':          int(data.get('smtp_port')      or 587),
+        'smtp_user':          (data.get('smtp_user')         or '').strip(),
+        'smtp_password':      (data.get('smtp_password')     or '').strip(),
+        'smtp_ssl':           bool(data.get('smtp_ssl', False)),
+        'nombre_remitente':   (data.get('nombre_remitente')  or '').strip(),
     })
     return jsonify({'ok': True, 'id': empresa_id})
 
@@ -268,7 +274,7 @@ def api_empresa_edit(empresa_id):
     if EmpresaRepository.cuit_exists(cuit, exclude_id=empresa_id):
         return jsonify({'error': f'Ya existe otra empresa con CUIT {cuit}'}), 400
 
-    EmpresaRepository.update(empresa_id, {
+    upd = {
         'nombre':             nombre,
         'cuit':               cuit,
         'cert':               cert,
@@ -281,7 +287,16 @@ def api_empresa_edit(empresa_id):
         'inicio_actividades': (data.get('inicio_actividades') or '').strip(),
         'matricula':          (data.get('matricula') or '').strip(),
         'logo_path':          (data.get('logo_path') or '').strip(),
-    })
+        'smtp_server':        (data.get('smtp_server')      or '').strip(),
+        'smtp_port':          int(data.get('smtp_port')      or 587),
+        'smtp_user':          (data.get('smtp_user')         or '').strip(),
+        'smtp_ssl':           bool(data.get('smtp_ssl', False)),
+        'nombre_remitente':   (data.get('nombre_remitente')  or '').strip(),
+    }
+    new_pw = (data.get('smtp_password') or '').strip()
+    if new_pw and '•' not in new_pw:
+        upd['smtp_password'] = new_pw
+    EmpresaRepository.update(empresa_id, upd)
     return jsonify({'ok': True})
 
 @app.route('/api/empresas/<empresa_id>', methods=['DELETE'])
@@ -888,46 +903,6 @@ def imprimir():
 
 # ---------- email -----------------------------------------------------------
 
-EMAIL_CONFIG_PATH = os.path.join(BASE, 'email_config.json')
-
-def _load_email_config() -> dict:
-    if os.path.exists(EMAIL_CONFIG_PATH):
-        with open(EMAIL_CONFIG_PATH, encoding='utf-8') as f:
-            return json.load(f)
-    return {'smtp_server': '', 'smtp_port': 587, 'smtp_user': '',
-            'smtp_password': '', 'smtp_ssl': False, 'nombre_remitente': ''}
-
-def _save_email_config(cfg: dict):
-    with open(EMAIL_CONFIG_PATH, 'w', encoding='utf-8') as f:
-        json.dump(cfg, f, ensure_ascii=False, indent=2)
-
-
-@app.route('/api/config-email', methods=['GET'])
-@admin_required
-def api_get_email_config():
-    cfg  = _load_email_config()
-    safe = dict(cfg)
-    if safe.get('smtp_password'):
-        safe['smtp_password'] = '••••••••'
-    return jsonify(safe)
-
-
-@app.route('/api/config-email', methods=['POST'])
-@admin_required
-def api_set_email_config():
-    data = request.get_json(force=True)
-    cfg  = _load_email_config()
-    cfg['smtp_server']      = (data.get('smtp_server')     or '').strip()
-    cfg['smtp_port']        = int(data.get('smtp_port')    or 587)
-    cfg['smtp_user']        = (data.get('smtp_user')       or '').strip()
-    cfg['nombre_remitente'] = (data.get('nombre_remitente') or '').strip()
-    cfg['smtp_ssl']         = bool(data.get('smtp_ssl', False))
-    new_pw = (data.get('smtp_password') or '').strip()
-    if new_pw and '•' not in new_pw:
-        cfg['smtp_password'] = new_pw
-    _save_email_config(cfg)
-    return jsonify({'ok': True})
-
 
 @app.route('/api/enviar-factura', methods=['POST'])
 @login_required
@@ -955,9 +930,16 @@ def api_enviar_factura():
     if not email_dst:
         return jsonify({'error': 'Email del destinatario es requerido'}), 400
 
-    cfg = _load_email_config()
-    if not cfg.get('smtp_server') or not cfg.get('smtp_user') or not cfg.get('smtp_password'):
-        return jsonify({'error': 'Configuracion de correo incompleta. Completala en Admin → Correo.'}), 400
+    cfg = {
+        'smtp_server':      empresa.get('smtp_server', ''),
+        'smtp_port':        empresa.get('smtp_port', 587),
+        'smtp_user':        empresa.get('smtp_user', ''),
+        'smtp_password':    empresa.get('smtp_password', ''),
+        'smtp_ssl':         empresa.get('smtp_ssl', False),
+        'nombre_remitente': empresa.get('nombre_remitente', ''),
+    }
+    if not cfg['smtp_server'] or not cfg['smtp_user'] or not cfg['smtp_password']:
+        return jsonify({'error': 'Correo no configurado para esta empresa. Editala en Admin → Empresas → sección Correo.'}), 400
 
     path = _resultado_path(empresa_id, mes)
     if not os.path.exists(path):
