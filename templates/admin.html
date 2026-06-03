@@ -643,18 +643,179 @@
         </form>
       </div>
 
-      <div class="border rounded p-3 bg-white">
-        <p class="mb-1 small fw-semibold"><i class="bi bi-info-circle text-primary"></i> Configuraciones comunes</p>
-        <table class="table table-sm table-bordered mb-0 small">
-          <thead class="table-light"><tr><th>Proveedor</th><th>Servidor</th><th>Puerto</th><th>SSL</th></tr></thead>
-          <tbody>
-            <tr><td>Gmail</td><td>smtp.gmail.com</td><td>587</td><td>No (TLS)</td></tr>
-            <tr><td>Outlook / Office 365</td><td>smtp.office365.com</td><td>587</td><td>No (TLS)</td></tr>
-            <tr><td>Yahoo</td><td>smtp.mail.yahoo.com</td><td>465</td><td>Sí</td></tr>
-            <tr><td>Hotmail</td><td>smtp.live.com</td><td>587</td><td>No (TLS)</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <!-- Manual de configuración -->
+      <div class="accordion mt-3" id="acordeonEmail">
+
+        <!-- Valores rápidos -->
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#email-paso0">
+              <span class="badge bg-info me-2">?</span> Valores para cada proveedor
+            </button>
+          </h2>
+          <div id="email-paso0" class="accordion-collapse collapse" data-bs-parent="#acordeonEmail">
+            <div class="accordion-body small">
+              <table class="table table-sm table-bordered mb-0">
+                <thead class="table-light">
+                  <tr><th>Proveedor</th><th>Servidor SMTP</th><th>Puerto</th><th>SSL directo</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><strong>Gmail</strong></td><td>smtp.gmail.com</td><td>587</td><td>No (TLS)</td></tr>
+                  <tr><td><strong>Outlook / Office 365</strong></td><td>smtp.office365.com</td><td>587</td><td>No (TLS)</td></tr>
+                  <tr><td><strong>Hotmail</strong></td><td>smtp.live.com</td><td>587</td><td>No (TLS)</td></tr>
+                  <tr><td><strong>Yahoo Mail</strong></td><td>smtp.mail.yahoo.com</td><td>465</td><td>Sí</td></tr>
+                  <tr><td><strong>Personal / hosting</strong></td><td>mail.tudominio.com</td><td>587</td><td>No (TLS)</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gmail -->
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#email-paso1">
+              <span class="badge bg-danger me-2">G</span> Configurar Gmail (más común)
+            </button>
+          </h2>
+          <div id="email-paso1" class="accordion-collapse collapse" data-bs-parent="#acordeonEmail">
+            <div class="accordion-body small">
+              <div class="alert alert-warning py-2 mb-3">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Gmail no acepta tu contraseña normal.</strong> Necesitás crear una
+                <strong>Contraseña de aplicación</strong>. Solo tarda 2 minutos.
+              </div>
+
+              <p class="fw-semibold mb-2">Paso 1 — Activar la verificación en dos pasos</p>
+              <ol class="mb-3">
+                <li>Abrí <strong>myaccount.google.com</strong> con la cuenta que vas a usar.</li>
+                <li>En el menú izquierdo hacé clic en <strong>Seguridad</strong>.</li>
+                <li>En la sección <em>"¿Cómo iniciás sesión en Google?"</em> entrá a
+                    <strong>Verificación en dos pasos</strong>.</li>
+                <li>Seguí los pasos para activarla (necesitás tu teléfono).</li>
+              </ol>
+
+              <p class="fw-semibold mb-2">Paso 2 — Crear la contraseña de aplicación</p>
+              <ol class="mb-3">
+                <li>Volvé a <strong>myaccount.google.com → Seguridad</strong>.</li>
+                <li>Buscá la opción <strong>Contraseñas de aplicación</strong>
+                    (aparece solo si el paso 1 está activo).</li>
+                <li>En <em>Seleccionar aplicación</em> elegí <strong>Correo</strong>.</li>
+                <li>En <em>Seleccionar dispositivo</em> elegí <strong>Otro</strong>
+                    y escribí <em>ARCA Facturación</em>.</li>
+                <li>Hacé clic en <strong>Generar</strong>.</li>
+                <li>Google te muestra una clave de 16 caracteres (ej: <code>abcd efgh ijkl mnop</code>).
+                    <strong>Copiala — solo se muestra una vez.</strong></li>
+              </ol>
+
+              <p class="fw-semibold mb-2">Paso 3 — Completar el formulario de arriba</p>
+              <table class="table table-sm table-bordered">
+                <tr><td class="fw-semibold" style="width:35%">Servidor SMTP</td><td><code>smtp.gmail.com</code></td></tr>
+                <tr><td class="fw-semibold">Puerto</td><td><code>587</code></td></tr>
+                <tr><td class="fw-semibold">Email remitente</td><td>Tu dirección de Gmail completa</td></tr>
+                <tr><td class="fw-semibold">Contraseña</td><td>La clave de 16 caracteres del paso 2 <em>(sin espacios)</em></td></tr>
+                <tr><td class="fw-semibold">SSL directo</td><td>❌ No marcar</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Outlook -->
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#email-paso2">
+              <span class="badge bg-primary me-2">O</span> Configurar Outlook / Office 365
+            </button>
+          </h2>
+          <div id="email-paso2" class="accordion-collapse collapse" data-bs-parent="#acordeonEmail">
+            <div class="accordion-body small">
+              <p class="fw-semibold mb-2">Completar el formulario con estos valores:</p>
+              <table class="table table-sm table-bordered mb-3">
+                <tr><td class="fw-semibold" style="width:35%">Servidor SMTP</td><td><code>smtp.office365.com</code></td></tr>
+                <tr><td class="fw-semibold">Puerto</td><td><code>587</code></td></tr>
+                <tr><td class="fw-semibold">Email remitente</td><td>Tu dirección de Outlook/Office 365 completa</td></tr>
+                <tr><td class="fw-semibold">Contraseña</td><td>Tu contraseña normal de Outlook</td></tr>
+                <tr><td class="fw-semibold">SSL directo</td><td>❌ No marcar</td></tr>
+              </table>
+              <div class="alert alert-info py-2 mb-0">
+                <i class="bi bi-info-circle"></i>
+                Si tu organización tiene autenticación moderna (MFA) es posible que necesites
+                generar una contraseña de aplicación desde el portal de Microsoft 365,
+                o que el administrador habilite SMTP Auth para tu cuenta.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hosting propio -->
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#email-paso3">
+              <span class="badge bg-secondary me-2">@</span> Configurar cuenta de hosting propio
+            </button>
+          </h2>
+          <div id="email-paso3" class="accordion-collapse collapse" data-bs-parent="#acordeonEmail">
+            <div class="accordion-body small">
+              <p>Usá los datos que te dio tu proveedor de hosting (cPanel, Plesk, etc.):</p>
+              <table class="table table-sm table-bordered mb-3">
+                <tr><td class="fw-semibold" style="width:35%">Servidor SMTP</td><td><code>mail.tudominio.com</code> (o el que te indicó el hosting)</td></tr>
+                <tr><td class="fw-semibold">Puerto</td><td><code>587</code> (TLS) o <code>465</code> (SSL)</td></tr>
+                <tr><td class="fw-semibold">Email remitente</td><td>La dirección de email completa</td></tr>
+                <tr><td class="fw-semibold">Contraseña</td><td>La contraseña del buzón de correo</td></tr>
+                <tr><td class="fw-semibold">SSL directo</td><td>Solo marcarlo si el puerto es 465</td></tr>
+              </table>
+              <p class="mb-0 text-muted">
+                Si no sabés los datos, ingresá al panel de administración de tu dominio
+                o consultá con el soporte de tu hosting.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Errores comunes -->
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#email-paso4">
+              <span class="badge bg-warning text-dark me-2">!</span> Errores comunes y soluciones
+            </button>
+          </h2>
+          <div id="email-paso4" class="accordion-collapse collapse" data-bs-parent="#acordeonEmail">
+            <div class="accordion-body small">
+              <table class="table table-sm table-bordered mb-0">
+                <thead class="table-light"><tr><th>Error</th><th>Causa probable</th><th>Solución</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><em>Error de autenticación SMTP</em></td>
+                    <td>Contraseña incorrecta o usás la contraseña normal de Gmail</td>
+                    <td>En Gmail: creá una contraseña de aplicación (ver pestaña G)</td>
+                  </tr>
+                  <tr>
+                    <td><em>Connection refused</em></td>
+                    <td>Puerto o servidor incorrecto</td>
+                    <td>Verificá los valores en la tabla de proveedores</td>
+                  </tr>
+                  <tr>
+                    <td><em>Connection timed out</em></td>
+                    <td>Firewall o antivirus bloqueando el puerto 587</td>
+                    <td>Desactivá temporalmente el antivirus o probá el puerto 465 con SSL activado</td>
+                  </tr>
+                  <tr>
+                    <td><em>SMTPSenderRefused</em></td>
+                    <td>El servidor rechaza el remitente</td>
+                    <td>El campo "Email remitente" debe ser exactamente la misma cuenta que usás para autenticarte</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /acordeonEmail -->
     </div><!-- /tab-email -->
 
   </div><!-- /tab-content -->
