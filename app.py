@@ -75,6 +75,16 @@ os.makedirs(UPLOAD, exist_ok=True)
 os.makedirs(CERTS,  exist_ok=True)
 
 
+def _str_cae(v) -> str:
+    """Convierte CAE (int/float/str de Excel) a string limpio sin decimales."""
+    if not v and v != 0:
+        return ''
+    s = str(v).strip()
+    if s.endswith('.0'):
+        return s[:-2]
+    return s
+
+
 # ---------- helpers -----------------------------------------------------------
 
 def _mes_actual() -> str:
@@ -552,7 +562,7 @@ def procesar():
                 if det.Resultado == 'A':
                     resultados.append({
                         'fila': idx + 2, 'nro': nro, 'resultado': 'APROBADO',
-                        'cae': det.CAE, 'vto_cae': str(det.CAEFchVto), 'obs': '',
+                        'cae': _str_cae(det.CAE), 'vto_cae': str(det.CAEFchVto), 'obs': '',
                     })
                 else:
                     obs = ''
@@ -616,7 +626,7 @@ def _guardar_resultado(src_path: str, dest_path: str, resultados: list):
         fill = verde if res == 'APROBADO' else (rojo if res == 'RECHAZADO' else amarillo)
 
         src_vals = [ws_src.cell(row_idx, c).value for c in range(1, n_src_cols + 1)]
-        res_vals = [r.get('nro', ''), res, r.get('cae', ''), r.get('vto_cae', ''), r.get('obs', '')]
+        res_vals = [r.get('nro', ''), res, _str_cae(r.get('cae', '')), r.get('vto_cae', ''), r.get('obs', '')]
 
         new_row = ws_dest.max_row + 1
         for col_idx, val in enumerate(src_vals + res_vals, 1):
@@ -668,7 +678,7 @@ def api_resultados_mes():
                 'fila':       int(idx) + 2,
                 'nro':        int(row.get('nro_cbte', 0)) if res == 'APROBADO' else 0,
                 'resultado':  'APROBADO' if res == 'APROBADO' else res,
-                'cae':        str(row.get('cae', '')) if res == 'APROBADO' else '',
+                'cae':        _str_cae(row.get('cae', '')) if res == 'APROBADO' else '',
                 'vto_cae':    str(row.get('vto_cae', '')) if res == 'APROBADO' else '',
                 'obs':        str(row.get('observaciones', '')),
                 'tipo_cbte':  t,
@@ -767,7 +777,7 @@ def _emitir_comprobante_asociado(tipo_map, label, empresa_id, mes_orig, fila, us
             return jsonify({'error': f'AFIP rechazó el comprobante: {obs}'}), 400
 
         res_data = {'fila': 2, 'nro': nro, 'resultado': 'APROBADO',
-                    'cae': det.CAE, 'vto_cae': str(det.CAEFchVto), 'obs': ''}
+                    'cae': _str_cae(det.CAE), 'vto_cae': str(det.CAEFchVto), 'obs': ''}
 
         import tempfile
         tmp = tempfile.mktemp(suffix='.xlsx')
@@ -785,7 +795,7 @@ def _emitir_comprobante_asociado(tipo_map, label, empresa_id, mes_orig, fila, us
             'tipo':    tipo_nuevo,
             'nombre':  TIPO_NOMBRE.get(tipo_nuevo, f'Tipo {tipo_nuevo}'),
             'nro':     nro,
-            'cae':     det.CAE,
+            'cae':     _str_cae(det.CAE),
             'vto_cae': str(det.CAEFchVto),
         })
 
@@ -965,7 +975,7 @@ def pdf_desde_resultado(empresa_id, fila):
         registro['fecha'] = str(registro['fecha'])
         resultado = {
             'nro':     int(row.get('nro_cbte', 0)),
-            'cae':     str(row.get('cae', '')),
+            'cae':     _str_cae(row.get('cae', '')),
             'vto_cae': str(row.get('vto_cae', '')),
         }
 
@@ -1107,7 +1117,7 @@ def api_enviar_factura():
         registro['fecha'] = str(registro['fecha'])
         resultado = {
             'nro':     int(row.get('nro_cbte', 0)),
-            'cae':     str(row.get('cae', '')),
+            'cae':     _str_cae(row.get('cae', '')),
             'vto_cae': str(row.get('vto_cae', '')),
         }
         pdf_buf  = factura_pdf.generar_pdf(empresa, registro, resultado)
@@ -1279,7 +1289,7 @@ def _leer_registros_reporte(empresa_id: str, desde: str, hasta: str,
                     'imp_neto':     float(row.get('imp_neto', 0)),
                     'imp_iva':      float(row.get('imp_iva', 0)),
                     'imp_total':    float(row.get('imp_total', 0)),
-                    'cae':          str(row.get('cae', '')),
+                    'cae':          _str_cae(row.get('cae', '')),
                     'vto_cae':      str(row.get('vto_cae', '')),
                 })
         except Exception as e:
