@@ -224,6 +224,40 @@
   </div>
 </div>
 
+<!-- Modal Enviar por email -->
+<div class="modal fade" id="modal-email" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-info-subtle">
+        <h5 class="modal-title"><i class="bi bi-envelope"></i> Enviar factura por email</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="email-modal-info" class="mb-3 text-muted small"></div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Email del destinatario <span class="text-danger">*</span></label>
+          <input type="email" class="form-control" id="email-dst" placeholder="cliente@ejemplo.com">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Asunto</label>
+          <input type="text" class="form-control" id="email-asunto">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Mensaje</label>
+          <textarea class="form-control" id="email-mensaje" rows="5"></textarea>
+        </div>
+        <div id="email-modal-error" class="alert alert-danger d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-info text-white" id="btn-enviar-email">
+          <i class="bi bi-send-fill"></i> Enviar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 let empresaActual  = null;
@@ -377,6 +411,9 @@ function renderResultados(data) {
            <button class="btn btn-sm btn-outline-danger py-0" title="Ver PDF" onclick="imprimirPDF(${idx})">
              <i class="bi bi-file-earmark-pdf"></i>
            </button>
+           <button class="btn btn-sm btn-outline-info py-0" title="Enviar por email" onclick="abrirEmail(${idx})">
+             <i class="bi bi-envelope"></i>
+           </button>
            <button class="btn btn-sm btn-outline-warning py-0" title="Nota de Crédito" onclick="abrirAsociado('nc',${idx})">
              <i class="bi bi-arrow-counterclockwise"></i> NC
            </button>
@@ -499,6 +536,73 @@ document.getElementById('btn-confirmar-nc').addEventListener('click', async () =
     btn.disabled = false;
     btn.innerHTML = `<i class="bi bi-send-fill"></i> Emitir`;
     asociadoPendiente = null;
+  }
+});
+
+// --- Enviar por email -------------------------------------------------------
+let emailPendiente = null;
+
+function abrirEmail(idx) {
+  const r        = resultadosData[idx];
+  const filaIdx  = r.fila - 2;
+  const reg      = registrosData[filaIdx] || {};
+  const pv       = String(reg.punto_venta || 0).padStart(5, '0');
+  const nro      = String(r.nro || 0).padStart(8, '0');
+  const tipoNom  = reg.tipo_cbte ? `Tipo ${reg.tipo_cbte}` : 'Comprobante';
+
+  emailPendiente = { fila: r.fila, mes: mesActual };
+
+  document.getElementById('email-modal-info').innerHTML =
+    `<strong>Factura:</strong> ${pv}-${nro} &nbsp;|&nbsp; <strong>Cliente:</strong> ${reg.razon_social || ''}`;
+  document.getElementById('email-dst').value    = '';
+  document.getElementById('email-asunto').value = `${tipoNom} Nro ${pv}-${nro} - ${empresaActual.nombre}`;
+  document.getElementById('email-mensaje').value =
+    `Estimado/a ${reg.razon_social || ''}:\n\nAdjuntamos el comprobante electrónico.\n\nSaludos,\n${empresaActual.nombre}`;
+  document.getElementById('email-modal-error').classList.add('d-none');
+  new bootstrap.Modal(document.getElementById('modal-email')).show();
+  setTimeout(() => document.getElementById('email-dst').focus(), 400);
+}
+
+document.getElementById('btn-enviar-email').addEventListener('click', async () => {
+  if (!emailPendiente) return;
+  const emailDst = document.getElementById('email-dst').value.trim();
+  if (!emailDst) {
+    document.getElementById('email-dst').focus();
+    return;
+  }
+  const btn = document.getElementById('btn-enviar-email');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Enviando...';
+  document.getElementById('email-modal-error').classList.add('d-none');
+
+  try {
+    const resp = await fetch('/api/enviar-factura', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        empresa_id:    empresaActual.id,
+        fila:          emailPendiente.fila,
+        mes:           emailPendiente.mes,
+        email_destino: emailDst,
+        asunto:        document.getElementById('email-asunto').value.trim(),
+        mensaje:       document.getElementById('email-mensaje').value.trim(),
+      }),
+    });
+    const data = await resp.json();
+    if (data.error) {
+      const el = document.getElementById('email-modal-error');
+      el.textContent = data.error; el.classList.remove('d-none');
+    } else {
+      bootstrap.Modal.getInstance(document.getElementById('modal-email')).hide();
+      alert(`✔ Email enviado correctamente a ${emailDst}`);
+      emailPendiente = null;
+    }
+  } catch (e) {
+    const el = document.getElementById('email-modal-error');
+    el.textContent = 'Error de red: ' + e; el.classList.remove('d-none');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-send-fill"></i> Enviar';
   }
 });
 </script>

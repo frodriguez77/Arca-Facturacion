@@ -71,6 +71,13 @@
         <span class="ms-1">4. Backup</span>
       </button>
     </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-email-btn" data-bs-toggle="tab"
+              data-bs-target="#tab-email" type="button" role="tab">
+        <i class="bi bi-envelope text-info"></i>
+        <span class="ms-1">5. Correo</span>
+      </button>
+    </li>
   </ul>
 
   <div class="tab-content" id="adminTabsContent">
@@ -575,6 +582,81 @@
 
     </div><!-- /tab-backup -->
 
+    <!-- ===== TAB 5: Correo electrónico ===== -->
+    <div class="tab-pane fade" id="tab-email" role="tabpanel">
+
+      <h5 class="mb-1"><i class="bi bi-envelope text-info"></i> Configuración de correo electrónico</h5>
+      <p class="text-muted small mb-4">
+        Configurá el servidor SMTP para poder enviar facturas por email directamente desde el sistema.
+      </p>
+
+      <div id="email-ok"    class="alert alert-success d-none"></div>
+      <div id="email-error" class="alert alert-danger  d-none"></div>
+
+      <div class="border rounded p-4 bg-light mb-3">
+        <form id="form-email" novalidate>
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-8">
+              <label class="form-label fw-semibold">Servidor SMTP <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="em-server"
+                     placeholder="Ej: smtp.gmail.com  /  smtp.office365.com">
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label fw-semibold">Puerto</label>
+              <input type="number" class="form-control" id="em-port" value="587">
+              <div class="form-text">587 = TLS · 465 = SSL · 25 = sin cifrado</div>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold">Email remitente <span class="text-danger">*</span></label>
+              <input type="email" class="form-control" id="em-user"
+                     placeholder="Ej: facturacion@miempresa.com">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold">Contraseña / Token de app <span class="text-danger">*</span></label>
+              <input type="password" class="form-control" id="em-password"
+                     placeholder="Contraseña o token de aplicación">
+              <div class="form-text">
+                Gmail: usá una <a href="https://myaccount.google.com/apppasswords" target="_blank">contraseña de aplicación</a>
+                (requiere 2FA activado).
+              </div>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold">Nombre del remitente</label>
+              <input type="text" class="form-control" id="em-nombre"
+                     placeholder="Ej: Ignacio Lofeudo Contaduría">
+            </div>
+            <div class="col-12 col-md-6 d-flex align-items-end">
+              <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" id="em-ssl">
+                <label class="form-check-label" for="em-ssl">
+                  Usar <strong>SSL directo</strong> (puerto 465)
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-info text-white" id="btn-guardar-email">
+              <i class="bi bi-floppy"></i> Guardar configuración
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div class="border rounded p-3 bg-white">
+        <p class="mb-1 small fw-semibold"><i class="bi bi-info-circle text-primary"></i> Configuraciones comunes</p>
+        <table class="table table-sm table-bordered mb-0 small">
+          <thead class="table-light"><tr><th>Proveedor</th><th>Servidor</th><th>Puerto</th><th>SSL</th></tr></thead>
+          <tbody>
+            <tr><td>Gmail</td><td>smtp.gmail.com</td><td>587</td><td>No (TLS)</td></tr>
+            <tr><td>Outlook / Office 365</td><td>smtp.office365.com</td><td>587</td><td>No (TLS)</td></tr>
+            <tr><td>Yahoo</td><td>smtp.mail.yahoo.com</td><td>465</td><td>Sí</td></tr>
+            <tr><td>Hotmail</td><td>smtp.live.com</td><td>587</td><td>No (TLS)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div><!-- /tab-email -->
+
   </div><!-- /tab-content -->
 </div><!-- /container -->
 
@@ -968,6 +1050,61 @@ document.getElementById('form-restore').addEventListener('submit', async e => {
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="bi bi-cloud-upload"></i> Restaurar backup';
+  }
+});
+
+// ===== CONFIGURACIÓN EMAIL ===================================================
+
+document.getElementById('tab-email-btn').addEventListener('shown.bs.tab', async () => {
+  try {
+    const resp = await fetch('/api/config-email');
+    const cfg  = await resp.json();
+    document.getElementById('em-server').value   = cfg.smtp_server   || '';
+    document.getElementById('em-port').value     = cfg.smtp_port     || 587;
+    document.getElementById('em-user').value     = cfg.smtp_user     || '';
+    document.getElementById('em-nombre').value   = cfg.nombre_remitente || '';
+    document.getElementById('em-ssl').checked    = !!cfg.smtp_ssl;
+    document.getElementById('em-password').value = cfg.smtp_password ? '••••••••' : '';
+  } catch (e) { /* silencioso */ }
+});
+
+document.getElementById('form-email').addEventListener('submit', async e => {
+  e.preventDefault();
+  document.getElementById('email-ok').classList.add('d-none');
+  document.getElementById('email-error').classList.add('d-none');
+
+  const body = {
+    smtp_server:      document.getElementById('em-server').value.trim(),
+    smtp_port:        parseInt(document.getElementById('em-port').value) || 587,
+    smtp_user:        document.getElementById('em-user').value.trim(),
+    smtp_password:    document.getElementById('em-password').value,
+    nombre_remitente: document.getElementById('em-nombre').value.trim(),
+    smtp_ssl:         document.getElementById('em-ssl').checked,
+  };
+
+  const btn = document.getElementById('btn-guardar-email');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Guardando...';
+
+  try {
+    const resp = await fetch('/api/config-email', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (data.error) {
+      const el = document.getElementById('email-error');
+      el.textContent = data.error; el.classList.remove('d-none');
+    } else {
+      const el = document.getElementById('email-ok');
+      el.textContent = '✅ Configuración de correo guardada correctamente.';
+      el.classList.remove('d-none');
+    }
+  } catch (err) {
+    const el = document.getElementById('email-error');
+    el.textContent = 'Error de red: ' + err; el.classList.remove('d-none');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-floppy"></i> Guardar configuración';
   }
 });
 

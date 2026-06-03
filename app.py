@@ -1,5 +1,6 @@
 import functools
 import io
+import json
 import os
 import re
 import subprocess
@@ -878,6 +879,151 @@ def imprimir():
                          mimetype='application/pdf')
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ---------- email -----------------------------------------------------------
+
+EMAIL_CONFIG_PATH = os.path.join(BASE, 'email_config.json')
+
+def _load_email_config() -> dict:
+    if os.path.exists(EMAIL_CONFIG_PATH):
+        with open(EMAIL_CONFIG_PATH, encoding='utf-8') as f:
+            return json.load(f)
+    return {'smtp_server': '', 'smtp_port': 587, 'smtp_user': '',
+            'smtp_password': '', 'smtp_ssl': False, 'nombre_remitente': ''}
+
+def _save_email_config(cfg: dict):
+    with open(EMAIL_CONFIG_PATH, 'w', encoding='utf-8') as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+
+
+@app.route('/api/config-email', methods=['GET'])
+@admin_required
+def api_get_email_config():
+    cfg  = _load_email_config()
+    safe = dict(cfg)
+    if safe.get('smtp_password'):
+        safe['smtp_password'] = '••••••••'
+    return jsonify(safe)
+
+
+@app.route('/api/config-email', methods=['POST'])
+@admin_required
+def api_set_email_config():
+    data = request.get_json(force=True)
+    cfg  = _load_email_config()
+    cfg['smtp_server']      = (data.get('smtp_server')     or '').strip()
+    cfg['smtp_port']        = int(data.get('smtp_port')    or 587)
+    cfg['smtp_user']        = (data.get('smtp_user')       or '').strip()
+    cfg['nombre_remitente'] = (data.get('nombre_remitente') or '').strip()
+    cfg['smtp_ssl']         = bool(data.get('smtp_ssl', False))
+    new_pw = (data.get('smtp_password') or '').strip()
+    if new_pw and '•' not in new_pw:
+        cfg['smtp_password'] = new_pw
+    _save_email_config(cfg)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/enviar-factura', methods=['POST'])
+@login_required
+def api_enviar_factura():
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.base import MIMEBase
+    from email.mime.text import MIMEText
+    from email import encoders as _enc
+
+    user       = _get_current_user()
+    data       = request.get_json(force=True)
+    empresa_id = (data.get('empresa_id') or '').strip()
+    fila       = int(data.get('fila', 0))
+    mes        = (data.get('mes') or _mes_actual()).strip()
+    email_dst  = (data.get('email_destino') or '').strip()
+    asunto     = (data.get('asunto') or '').strip()
+    mensaje    = (data.get('mensaje') or '').strip()
+
+    empresa = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 400
+    if not _user_can_access(user, empresa_id):
+        return jsonify({'error': 'Acceso denegado'}), 403
+    if not email_dst:
+        return jsonify({'error': 'Email del destinatario es requerido'}), 400
+
+    cfg = _load_email_config()
+    if not cfg.get('smtp_server') or not cfg.get('smtp_user') or not cfg.get('smtp_password'):
+        return jsonify({'error': 'Configuracion de correo incompleta. Completala en Admin → Correo.'}), 400
+
+    path = _resultado_path(empresa_id, mes)
+    if not os.path.exists(path):
+        return jsonify({'error': 'No hay resultados guardados para ese mes'}), 400
+
+    try:
+        df = pd.read_excel(path)
+        df.columns = [c.lower().strip().replace(' ', '_') for c in df.columns]
+        idx = fila - 2
+        if idx < 0 or idx >= len(df):
+            return jsonify({'error': 'Fila no encontrada'}), 400
+
+        row      = df.iloc[idx].to_dict()
+        registro = {c: row.get(c, '') for c in COLUMNAS}
+        registro['fecha'] = str(registro['fecha'])
+        resultado = {
+            'nro':     int(row.get('nro_cbte', 0)),
+            'cae':     str(row.get('cae', '')),
+            'vto_cae': str(row.get('vto_cae', '')),
+        }
+        pdf_buf  = factura_pdf.generar_pdf(empresa, registro, resultado)
+        pv       = int(registro['punto_venta'])
+        nro      = int(resultado['nro'])
+        filename = f'factura_{pv:05d}-{nro:08d}.pdf'
+    except Exception as e:
+        return jsonify({'error': f'Error generando PDF: {e}'}), 500
+
+    if not asunto:
+        tipo_nom = factura_pdf.TIPO_NOMBRE.get(int(registro.get('tipo_cbte', 0)), 'Comprobante')
+        asunto   = f'{tipo_nom} Nro {pv:05d}-{nro:08d} - {empresa["nombre"]}'
+    if not mensaje:
+        mensaje = (
+            f'Estimado/a {row.get("razon_social", "")}:\n\n'
+            f'Adjuntamos el comprobante electronico.\n\n'
+            f'Saludos,\n{cfg.get("nombre_remitente") or empresa["nombre"]}'
+        )
+
+    msg            = MIMEMultipart()
+    remitente      = f'{cfg.get("nombre_remitente") or empresa["nombre"]} <{cfg["smtp_user"]}>'
+    msg['From']    = remitente
+    msg['To']      = email_dst
+    msg['Subject'] = asunto
+    msg.attach(MIMEText(mensaje, 'plain', 'utf-8'))
+
+    part = MIMEBase('application', 'pdf')
+    part.set_payload(pdf_buf.read())
+    _enc.encode_base64(part)
+    part.add_header('Content-Disposition', 'attachment', filename=filename)
+    msg.attach(part)
+
+    try:
+        port = int(cfg.get('smtp_port', 587))
+        srv  = cfg['smtp_server']
+        usr  = cfg['smtp_user']
+        pw   = cfg['smtp_password']
+
+        if cfg.get('smtp_ssl') or port == 465:
+            with smtplib.SMTP_SSL(srv, port, timeout=20) as s:
+                s.login(usr, pw)
+                s.sendmail(usr, email_dst, msg.as_bytes())
+        else:
+            with smtplib.SMTP(srv, port, timeout=20) as s:
+                s.ehlo(); s.starttls(); s.ehlo()
+                s.login(usr, pw)
+                s.sendmail(usr, email_dst, msg.as_bytes())
+
+        return jsonify({'ok': True})
+    except smtplib.SMTPAuthenticationError:
+        return jsonify({'error': 'Error de autenticacion SMTP. Verifica usuario y contrasena.'}), 500
+    except Exception as e:
+        return jsonify({'error': f'Error al enviar: {e}'}), 500
 
 
 # ---------- generador de CSR -------------------------------------------------
