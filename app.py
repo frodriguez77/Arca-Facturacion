@@ -655,7 +655,7 @@ def api_resultados_mes():
             res = str(row.get('resultado', '')).upper()
             if res not in ('APROBADO', 'RECHAZADO', 'ERROR'):
                 continue
-                t     = int(row.get('tipo_cbte', 0))
+            t     = int(row.get('tipo_cbte', 0))
             grupo = _tipo_grupo(t)
             resultados.append({
                 'fila':       int(idx) + 2,
@@ -903,6 +903,46 @@ def imprimir():
 
 # ---------- email -----------------------------------------------------------
 
+EMAIL_CONFIG_PATH = os.path.join(BASE, 'email_config.json')
+
+def _load_email_config() -> dict:
+    if os.path.exists(EMAIL_CONFIG_PATH):
+        with open(EMAIL_CONFIG_PATH, encoding='utf-8') as f:
+            return json.load(f)
+    return {'smtp_server': '', 'smtp_port': 587, 'smtp_user': '',
+            'smtp_password': '', 'smtp_ssl': False, 'nombre_remitente': ''}
+
+def _save_email_config(cfg: dict):
+    with open(EMAIL_CONFIG_PATH, 'w', encoding='utf-8') as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+
+
+@app.route('/api/config-email', methods=['GET'])
+@admin_required
+def api_get_email_config():
+    cfg  = _load_email_config()
+    safe = dict(cfg)
+    if safe.get('smtp_password'):
+        safe['smtp_password'] = '••••••••'
+    return jsonify(safe)
+
+
+@app.route('/api/config-email', methods=['POST'])
+@admin_required
+def api_set_email_config():
+    data = request.get_json(force=True)
+    cfg  = _load_email_config()
+    cfg['smtp_server']      = (data.get('smtp_server')      or '').strip()
+    cfg['smtp_port']        = int(data.get('smtp_port')      or 587)
+    cfg['smtp_user']        = (data.get('smtp_user')         or '').strip()
+    cfg['nombre_remitente'] = (data.get('nombre_remitente')  or '').strip()
+    cfg['smtp_ssl']         = bool(data.get('smtp_ssl', False))
+    new_pw = (data.get('smtp_password') or '').strip()
+    if new_pw and '•' not in new_pw:
+        cfg['smtp_password'] = new_pw
+    _save_email_config(cfg)
+    return jsonify({'ok': True})
+
 
 @app.route('/api/enviar-factura', methods=['POST'])
 @login_required
@@ -930,16 +970,20 @@ def api_enviar_factura():
     if not email_dst:
         return jsonify({'error': 'Email del destinatario es requerido'}), 400
 
-    cfg = {
-        'smtp_server':      empresa.get('smtp_server', ''),
-        'smtp_port':        empresa.get('smtp_port', 587),
-        'smtp_user':        empresa.get('smtp_user', ''),
-        'smtp_password':    empresa.get('smtp_password', ''),
-        'smtp_ssl':         empresa.get('smtp_ssl', False),
-        'nombre_remitente': empresa.get('nombre_remitente', ''),
-    }
-    if not cfg['smtp_server'] or not cfg['smtp_user'] or not cfg['smtp_password']:
-        return jsonify({'error': 'Correo no configurado para esta empresa. Editala en Admin → Empresas → sección Correo.'}), 400
+    # Prioridad: config de la empresa; si no tiene, usa la config global
+    if empresa.get('smtp_server') and empresa.get('smtp_user') and empresa.get('smtp_password'):
+        cfg = {
+            'smtp_server':      empresa['smtp_server'],
+            'smtp_port':        empresa.get('smtp_port', 587),
+            'smtp_user':        empresa['smtp_user'],
+            'smtp_password':    empresa['smtp_password'],
+            'smtp_ssl':         empresa.get('smtp_ssl', False),
+            'nombre_remitente': empresa.get('nombre_remitente', ''),
+        }
+    else:
+        cfg = _load_email_config()
+        if not cfg.get('smtp_server') or not cfg.get('smtp_user') or not cfg.get('smtp_password'):
+            return jsonify({'error': 'Correo no configurado. Configuralo en Admin → Empresas o en Admin → Correo (global).'}), 400
 
     path = _resultado_path(empresa_id, mes)
     if not os.path.exists(path):

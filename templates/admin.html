@@ -636,11 +636,65 @@
     <!-- ===== TAB 5: Correo electrónico ===== -->
     <div class="tab-pane fade" id="tab-email" role="tabpanel">
 
-      <h5 class="mb-1"><i class="bi bi-envelope text-info"></i> Ayuda para configurar el correo</h5>
+      <h5 class="mb-1"><i class="bi bi-envelope text-info"></i> Correo electrónico global (por defecto)</h5>
       <p class="text-muted small mb-4">
-        La configuración SMTP se guarda <strong>por empresa</strong>: editá cada empresa
-        (pestaña <strong>1. Empresas</strong>) y completá la sección <em>Correo electrónico</em>.
+        Este correo se usa cuando una empresa <strong>no tiene uno propio configurado</strong>.
+        Si la empresa tiene su propio SMTP (pestaña <strong>1. Empresas → sección Correo</strong>),
+        ese tiene <strong>prioridad</strong>.
       </p>
+
+      <div id="email-ok"    class="alert alert-success d-none"></div>
+      <div id="email-error" class="alert alert-danger  d-none"></div>
+
+      <div class="border rounded p-4 bg-light mb-3">
+        <form id="form-email" novalidate>
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-8">
+              <label class="form-label fw-semibold">Servidor SMTP <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="em-server"
+                     placeholder="Ej: smtp.gmail.com  /  smtp.office365.com">
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label fw-semibold">Puerto</label>
+              <input type="number" class="form-control" id="em-port" value="587">
+              <div class="form-text">587 = TLS · 465 = SSL · 25 = sin cifrado</div>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold">Email remitente <span class="text-danger">*</span></label>
+              <input type="email" class="form-control" id="em-user"
+                     placeholder="Ej: facturacion@miempresa.com">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold">Contraseña / Token de app <span class="text-danger">*</span></label>
+              <input type="password" class="form-control" id="em-password"
+                     placeholder="Contraseña o token de aplicación">
+              <div class="form-text">
+                Gmail: usá una <a href="https://myaccount.google.com/apppasswords" target="_blank">contraseña de aplicación</a>
+                (requiere 2FA activado).
+              </div>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold">Nombre del remitente</label>
+              <input type="text" class="form-control" id="em-nombre"
+                     placeholder="Ej: Facturación General">
+            </div>
+            <div class="col-12 col-md-6 d-flex align-items-end">
+              <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" id="em-ssl">
+                <label class="form-check-label" for="em-ssl">
+                  Usar <strong>SSL directo</strong> (puerto 465)
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-info text-white" id="btn-guardar-email">
+              <i class="bi bi-floppy"></i> Guardar configuración global
+            </button>
+          </div>
+        </form>
+      </div>
 
       <!-- Manual de configuración -->
       <div class="accordion mt-3" id="acordeonEmail">
@@ -1227,7 +1281,60 @@ document.getElementById('form-restore').addEventListener('submit', async e => {
   }
 });
 
-// ===== CONFIGURACIÓN EMAIL (por empresa — ver pestaña 1. Empresas) ===========
+// ===== CONFIGURACIÓN EMAIL GLOBAL ============================================
+
+document.getElementById('tab-email-btn').addEventListener('shown.bs.tab', async () => {
+  try {
+    const resp = await fetch('/api/config-email');
+    const cfg  = await resp.json();
+    document.getElementById('em-server').value   = cfg.smtp_server        || '';
+    document.getElementById('em-port').value     = cfg.smtp_port          || 587;
+    document.getElementById('em-user').value     = cfg.smtp_user          || '';
+    document.getElementById('em-nombre').value   = cfg.nombre_remitente   || '';
+    document.getElementById('em-ssl').checked    = !!cfg.smtp_ssl;
+    document.getElementById('em-password').value = cfg.smtp_password ? '••••••••' : '';
+  } catch (e) { /* silencioso */ }
+});
+
+document.getElementById('form-email').addEventListener('submit', async e => {
+  e.preventDefault();
+  document.getElementById('email-ok').classList.add('d-none');
+  document.getElementById('email-error').classList.add('d-none');
+
+  const body = {
+    smtp_server:      document.getElementById('em-server').value.trim(),
+    smtp_port:        parseInt(document.getElementById('em-port').value) || 587,
+    smtp_user:        document.getElementById('em-user').value.trim(),
+    smtp_password:    document.getElementById('em-password').value,
+    nombre_remitente: document.getElementById('em-nombre').value.trim(),
+    smtp_ssl:         document.getElementById('em-ssl').checked,
+  };
+
+  const btn = document.getElementById('btn-guardar-email');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Guardando...';
+
+  try {
+    const resp = await fetch('/api/config-email', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (data.error) {
+      const el = document.getElementById('email-error');
+      el.textContent = data.error; el.classList.remove('d-none');
+    } else {
+      const el = document.getElementById('email-ok');
+      el.textContent = '✅ Configuración global guardada correctamente.';
+      el.classList.remove('d-none');
+    }
+  } catch (err) {
+    const el = document.getElementById('email-error');
+    el.textContent = 'Error de red: ' + err; el.classList.remove('d-none');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-floppy"></i> Guardar configuración global';
+  }
+});
 
 // ===== GENERADOR DE CSR ======================================================
 
