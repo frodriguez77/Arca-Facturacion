@@ -784,8 +784,19 @@ document.getElementById('btn-abrir-manual').addEventListener('click', () => {
   const hoy = new Date();
   document.getElementById('man-mes').value   = hoy.toISOString().slice(0, 7);
   document.getElementById('man-fecha').value = hoy.toISOString().slice(0, 10);
+  calcularVtoCae();
   document.getElementById('man-error').classList.add('d-none');
 });
+
+// Auto-calcular Vto. CAE = fecha + 10 días (regla AFIP)
+function calcularVtoCae() {
+  const fechaVal = document.getElementById('man-fecha').value;
+  if (!fechaVal) return;
+  const d = new Date(fechaVal + 'T12:00:00');
+  d.setDate(d.getDate() + 10);
+  document.getElementById('man-vto-cae').value = d.toISOString().slice(0, 10);
+}
+document.getElementById('man-fecha').addEventListener('change', calcularVtoCae);
 
 // Auto-calcular IVA y total cuando cambia neto o alícuota
 function recalcularImportes() {
