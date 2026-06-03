@@ -674,6 +674,8 @@ def api_resultados_mes():
                 continue
             t     = int(row.get('tipo_cbte', 0))
             grupo = _tipo_grupo(t)
+            email_raw = str(row.get('email', ''))
+            email_val = email_raw.strip() if email_raw not in ('nan', 'None', '') else ''
             resultados.append({
                 'fila':       int(idx) + 2,
                 'nro':        int(row.get('nro_cbte', 0)) if res == 'APROBADO' else 0,
@@ -684,6 +686,7 @@ def api_resultados_mes():
                 'tipo_cbte':  t,
                 'tipo_nombre': TIPO_NOMBRE.get(t, f'Tipo {t}') if t else '',
                 'tipo_grupo': grupo,
+                'email':      email_val,
             })
         aprobados = sum(1 for r in resultados if r['resultado'] == 'APROBADO')
         return jsonify({
@@ -937,6 +940,7 @@ def plantilla():
         'doc_tipo': 99, 'doc_nro': 0, 'razon_social': 'Consumidor Final',
         'fecha': datetime.today().strftime('%Y-%m-%d'),
         'imp_neto': 1000.00, 'alicuota': 0, 'imp_iva': 0.00, 'imp_total': 1000.00,
+        'email': '',
     }])
     out = io.BytesIO()
     with pd.ExcelWriter(out, engine='openpyxl') as w:
@@ -1171,6 +1175,137 @@ def api_enviar_factura():
         return jsonify({'error': 'Error de autenticacion SMTP. Verifica usuario y contrasena.'}), 500
     except Exception as e:
         return jsonify({'error': f'Error al enviar: {e}'}), 500
+
+
+@app.route('/api/enviar-todos', methods=['POST'])
+@login_required
+def api_enviar_todos():
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.base import MIMEBase
+    from email.mime.text import MIMEText
+    from email import encoders as _enc
+
+    user       = _get_current_user()
+    data       = request.get_json(force=True)
+    empresa_id = (data.get('empresa_id') or '').strip()
+    mes        = (data.get('mes') or _mes_actual()).strip()
+
+    empresa = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 400
+    if not _user_can_access(user, empresa_id):
+        return jsonify({'error': 'Acceso denegado'}), 403
+
+    if empresa.get('smtp_server') and empresa.get('smtp_user') and empresa.get('smtp_password'):
+        cfg = {
+            'smtp_server':      empresa['smtp_server'],
+            'smtp_port':        empresa.get('smtp_port', 587),
+            'smtp_user':        empresa['smtp_user'],
+            'smtp_password':    empresa['smtp_password'],
+            'smtp_ssl':         empresa.get('smtp_ssl', False),
+            'nombre_remitente': empresa.get('nombre_remitente', ''),
+        }
+    else:
+        cfg = _load_email_config()
+        if not cfg.get('smtp_server') or not cfg.get('smtp_user') or not cfg.get('smtp_password'):
+            return jsonify({'error': 'Correo no configurado. Configuralo en Admin → Empresas o en Admin → Correo (global).'}), 400
+
+    path = _resultado_path(empresa_id, mes)
+    if not os.path.exists(path):
+        return jsonify({'error': 'No hay resultados guardados para ese mes'}), 400
+
+    try:
+        df = pd.read_excel(path)
+        df.columns = [c.lower().strip().replace(' ', '_') for c in df.columns]
+    except Exception as e:
+        return jsonify({'error': f'Error leyendo resultados: {e}'}), 500
+
+    enviados  = []
+    errores   = []
+    omitidos  = 0
+
+    port = int(cfg.get('smtp_port', 587))
+    srv  = cfg['smtp_server']
+    usr  = cfg['smtp_user']
+    pw   = cfg['smtp_password']
+
+    try:
+        if cfg.get('smtp_ssl') or port == 465:
+            smtp_conn = smtplib.SMTP_SSL(srv, port, timeout=30)
+        else:
+            smtp_conn = smtplib.SMTP(srv, port, timeout=30)
+            smtp_conn.ehlo(); smtp_conn.starttls(); smtp_conn.ehlo()
+        smtp_conn.login(usr, pw)
+    except smtplib.SMTPAuthenticationError:
+        return jsonify({'error': 'Error de autenticacion SMTP. Verifica usuario y contrasena.'}), 500
+    except Exception as e:
+        return jsonify({'error': f'No se pudo conectar al servidor de correo: {e}'}), 500
+
+    try:
+        for idx, row in df.iterrows():
+            res = str(row.get('resultado', '')).upper()
+            if res != 'APROBADO':
+                omitidos += 1
+                continue
+
+            email_raw = str(row.get('email', ''))
+            email_dst = email_raw.strip() if email_raw not in ('nan', 'None', '') else ''
+            if not email_dst:
+                omitidos += 1
+                continue
+
+            fila = int(idx) + 2
+            try:
+                registro = {c: row.get(c, '') for c in COLUMNAS}
+                registro['fecha'] = str(registro['fecha'])
+                resultado = {
+                    'nro':     int(row.get('nro_cbte', 0)),
+                    'cae':     _str_cae(row.get('cae', '')),
+                    'vto_cae': _str_cae(row.get('vto_cae', '')),
+                }
+                pdf_buf  = factura_pdf.generar_pdf(empresa, registro, resultado)
+                pv       = int(registro['punto_venta'])
+                nro      = int(resultado['nro'])
+                filename = f'factura_{pv:05d}-{nro:08d}.pdf'
+
+                tipo_nom = TIPO_NOMBRE.get(int(registro.get('tipo_cbte', 0)), 'Comprobante')
+                asunto   = f'{tipo_nom} Nro {pv:05d}-{nro:08d} - {empresa["nombre"]}'
+                remitente_nom = cfg.get('nombre_remitente') or empresa['nombre']
+                mensaje  = (
+                    f'Estimado/a {row.get("razon_social", "")}:\n\n'
+                    f'Adjuntamos el comprobante electrónico.\n\n'
+                    f'Saludos,\n{remitente_nom}'
+                )
+
+                msg            = MIMEMultipart()
+                msg['From']    = f'{remitente_nom} <{usr}>'
+                msg['To']      = email_dst
+                msg['Subject'] = asunto
+                msg.attach(MIMEText(mensaje, 'plain', 'utf-8'))
+
+                part = MIMEBase('application', 'pdf')
+                part.set_payload(pdf_buf.read())
+                _enc.encode_base64(part)
+                part.add_header('Content-Disposition', 'attachment', filename=filename)
+                msg.attach(part)
+
+                smtp_conn.sendmail(usr, email_dst, msg.as_bytes())
+                enviados.append({'fila': fila, 'email': email_dst, 'nro': nro})
+            except Exception as e:
+                errores.append({'fila': fila, 'email': email_dst, 'error': str(e)})
+    finally:
+        try:
+            smtp_conn.quit()
+        except Exception:
+            pass
+
+    return jsonify({
+        'ok':      True,
+        'enviados': len(enviados),
+        'errores':  errores,
+        'omitidos': omitidos,
+    })
 
 
 # ---------- generador de CSR -------------------------------------------------

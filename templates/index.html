@@ -114,7 +114,8 @@
       <p class="text-muted small mb-3">
         Columnas requeridas:
         <code>punto_venta, tipo_cbte, concepto, doc_tipo, doc_nro,
-        razon_social, fecha, imp_neto, alicuota, imp_iva, imp_total</code>
+        razon_social, fecha, imp_neto, alicuota, imp_iva, imp_total</code><br>
+        Columna opcional: <code>email</code> — si la incluís, podés enviar los comprobantes por correo automáticamente al terminar.
       </p>
 
       <div id="drop-zone" onclick="document.getElementById('finput').click()">
@@ -215,6 +216,9 @@
         </a>
         <button class="btn btn-outline-primary" id="btn-nuevo">
           <i class="bi bi-plus-circle"></i> Nueva facturación
+        </button>
+        <button class="btn btn-outline-info d-none" id="btn-enviar-todos">
+          <i class="bi bi-envelope-check"></i> Enviar a todos (<span id="count-con-email">0</span>)
         </button>
       </div>
     </div>
@@ -568,6 +572,15 @@ function renderResultados(data) {
   document.getElementById('btn-descargar').href  = `/descargar?empresa_id=${empresaActual.id}&mes=${mesActual}`;
   document.getElementById('btn-ver-resultados').classList.remove('d-none');
 
+  const conEmail = data.resultados.filter(r => r.resultado === 'APROBADO' && r.email).length;
+  const btnTodos = document.getElementById('btn-enviar-todos');
+  document.getElementById('count-con-email').textContent = conEmail;
+  if (conEmail > 0) {
+    btnTodos.classList.remove('d-none');
+  } else {
+    btnTodos.classList.add('d-none');
+  }
+
   const tipoBadge = { factura: 'bg-primary', nc: 'bg-danger', nd: 'bg-warning text-dark' };
 
   document.getElementById('tbody-result').innerHTML = data.resultados.map((r, idx) => {
@@ -809,6 +822,40 @@ function recalcularImportes() {
 }
 document.getElementById('man-neto').addEventListener('input',     recalcularImportes);
 document.getElementById('man-alicuota').addEventListener('change', recalcularImportes);
+
+// --- Enviar a todos -----------------------------------------------------------
+document.getElementById('btn-enviar-todos').addEventListener('click', async () => {
+  const total = parseInt(document.getElementById('count-con-email').textContent) || 0;
+  if (!confirm(`¿Enviar el comprobante por email a ${total} cliente(s)?\nEsta acción enviará correos a todos los aprobados con email en el Excel.`)) return;
+
+  const btn = document.getElementById('btn-enviar-todos');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Enviando...';
+
+  try {
+    const resp = await fetch('/api/enviar-todos', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ empresa_id: empresaActual.id, mes: mesActual }),
+    });
+    const data = await resp.json();
+    if (data.error) {
+      alert('Error: ' + data.error);
+    } else {
+      let msg = `✔ Emails enviados: ${data.enviados}`;
+      if (data.errores && data.errores.length > 0) {
+        msg += `\n⚠ Con errores: ${data.errores.length}`;
+        data.errores.forEach(e => { msg += `\n  Fila ${e.fila} (${e.email}): ${e.error}`; });
+      }
+      alert(msg);
+    }
+  } catch (e) {
+    alert('Error de red: ' + e);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<i class="bi bi-envelope-check"></i> Enviar a todos (<span id="count-con-email">${total}</span>)`;
+  }
+});
 
 document.getElementById('btn-guardar-manual').addEventListener('click', async () => {
   const err = document.getElementById('man-error');
