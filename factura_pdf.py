@@ -6,6 +6,7 @@ Genera dos páginas: ORIGINAL y DUPLICADO.
 import base64
 import io
 import json
+import os
 from datetime import datetime
 
 from reportlab.lib import colors
@@ -29,7 +30,7 @@ TIPO_NOMBRE = {
 }
 TIPO_LETRA  = {1:'A',2:'A',3:'A', 6:'B',7:'B',8:'B', 11:'C',12:'C',13:'C'}
 DOC_NOMBRE  = {80:'CUIT', 86:'CUIL', 96:'DNI', 99:'Consumidor Final'}
-CONCEPTO_NOM= {1:'Productos', 2:'Servicios', 3:'Productos y Servicios'}
+CONCEPTO_NOM= {1:'Productos', 2:'Honorarios profesionales', 3:'Productos y Servicios'}
 IVA_EMISOR  = {'A':'Responsable Inscripto', 'B':'Responsable Inscripto', 'C':'Monotributista'}
 
 # ── número a letras (español) ─────────────────────────────────────────────────
@@ -120,6 +121,8 @@ def _page(c, titulo, emp, reg, res):
     ing_brutos= emp.get('ing_brutos','')
     inicio    = emp.get('inicio_actividades','')
     homo      = emp.get('homologacion', False)
+    matricula = emp.get('matricula', '')
+    logo_path = emp.get('logo_path', '')
 
     tipo_cbte = int(reg['tipo_cbte'])
     pto_venta = int(reg['punto_venta'])
@@ -163,9 +166,6 @@ def _page(c, titulo, emp, reg, res):
     # ── ENCABEZADO ──────────────────────────────────────────────────
     y = H - MT
 
-    # nombre empresa — grande izquierda
-    T(ML, y - 0.7*cm, nom_emp, sz=16, bold=True)
-
     # cuadro de letra — derecha arriba (3×3 cm)
     box_sz = 2.8*cm
     bx = ML + CW - box_sz
@@ -182,16 +182,31 @@ def _page(c, titulo, emp, reg, res):
     T(xr, y - 1.60*cm, f'Fecha  {_dfmt(fecha_raw)}', sz=9, align='right')
     T(xr, y - 2.05*cm, titulo,              sz=9,  bold=True, align='right', color=GRIS)
 
+    # logo — izquierda (si existe)
+    x_emp = ML
+    if logo_path and os.path.exists(logo_path):
+        try:
+            logo_max_w = 3.2 * cm
+            logo_max_h = box_sz * 0.80
+            c.drawImage(ImageReader(logo_path), ML, y - logo_max_h,
+                        logo_max_w, logo_max_h, preserveAspectRatio=True, mask='auto')
+            x_emp = ML + logo_max_w + 0.4 * cm
+        except Exception:
+            pass
+
+    # nombre empresa — grande izquierda (o a la derecha del logo)
+    T(x_emp, y - 0.7*cm, nom_emp, sz=15 if x_emp > ML else 16, bold=True)
+
     # datos fiscales empresa — bajo el nombre
     ye = y - 1.15*cm
-    T(ML, ye,             _cuit(cuit),               sz=8, color=GRIS)
-    T(ML, ye - 0.42*cm,   IVA_EMISOR.get(letra,''),  sz=8, color=GRIS)
+    T(x_emp, ye,             _cuit(cuit),               sz=8, color=GRIS)
+    T(x_emp, ye - 0.42*cm,   IVA_EMISOR.get(letra,''),  sz=8, color=GRIS)
     info = '  ·  '.join(filter(None,[domicilio, telefono, localidad]))
-    if info: T(ML, ye - 0.84*cm, info, sz=8, color=GRIS)
-    if ing_brutos: T(ML, ye - 1.26*cm, f'Ing. Brutos: {ing_brutos}', sz=8, color=GRIS)
-    if inicio:     T(ML, ye - (1.68 if ing_brutos else 1.26)*cm,
+    if info: T(x_emp, ye - 0.84*cm, info, sz=8, color=GRIS)
+    if ing_brutos: T(x_emp, ye - 1.26*cm, f'Ing. Brutos: {ing_brutos}', sz=8, color=GRIS)
+    if inicio:     T(x_emp, ye - (1.68 if ing_brutos else 1.26)*cm,
                      f'Inicio actividades: {inicio}', sz=8, color=GRIS)
-    if homo:       T(ML, ye - 2.1*cm, 'HOMOLOGACIÓN', sz=8, bold=True, color=colors.red)
+    if homo:       T(x_emp, ye - 2.1*cm, 'HOMOLOGACIÓN', sz=8, bold=True, color=colors.red)
 
     # línea separadora gruesa bajo encabezado
     y_sep1 = y - box_sz - 0.45*cm
@@ -254,9 +269,21 @@ def _page(c, titulo, emp, reg, res):
     y_sep5 = y_sep4 - 0.90*cm
     hline(y_sep5, lw=0.3, color=GRIS)
 
+    # ── MATRÍCULA ───────────────────────────────────────────────────
+    mat_extra = 0
+    if matricula:
+        mat_h  = 0.85 * cm
+        mat_y0 = y_sep5 - 0.20 * cm - mat_h
+        c.setStrokeColor(NEGRO); c.setLineWidth(0.5)
+        c.rect(ML, mat_y0, CW, mat_h, fill=0, stroke=1)
+        T(ML + CW / 2, mat_y0 + mat_h / 2 - 0.15 * cm,
+          matricula, sz=9, align='center', font='Helvetica-Oblique')
+        mat_extra = mat_h + 0.35 * cm
+
     # ── QR + CAE ────────────────────────────────────────────────────
     qr_sz = 3.0*cm
-    qr_y  = y_sep5 - qr_sz - 0.40*cm
+    y_qr  = y_sep5 - mat_extra
+    qr_y  = y_qr - qr_sz - 0.40*cm
 
     try:
         qr_buf = _qr(cuit, pto_venta, tipo_cbte, nro_cbte,
@@ -267,10 +294,10 @@ def _page(c, titulo, emp, reg, res):
         pass
 
     xc = ML + qr_sz + 0.5*cm
-    T(xc, y_sep5 - 0.60*cm, f'CAE: {cae}',             sz=9, bold=True)
-    T(xc, y_sep5 - 1.05*cm, f'Vto. CAE: {_dfmt(vto_cae)}', sz=9)
-    T(xc, y_sep5 - 1.50*cm, 'Comprobante Autorizado',   sz=8, color=GRIS)
-    T(xc, y_sep5 - 1.90*cm, 'www.afip.gob.ar',          sz=8, color=GRIS)
+    T(xc, y_qr - 0.60*cm, f'CAE: {cae}',              sz=9, bold=True)
+    T(xc, y_qr - 1.05*cm, f'Vto. CAE: {_dfmt(vto_cae)}', sz=9)
+    T(xc, y_qr - 1.50*cm, 'Comprobante Autorizado',    sz=8, color=GRIS)
+    T(xc, y_qr - 1.90*cm, 'www.afip.gob.ar',           sz=8, color=GRIS)
 
     # ── PIE ─────────────────────────────────────────────────────────
     hline(MB + 0.6*cm, lw=0.3, color=GRIS)

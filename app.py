@@ -243,6 +243,8 @@ def api_empresa_add():
         'localidad':          (data.get('localidad') or '').strip(),
         'ing_brutos':         (data.get('ing_brutos') or '').strip(),
         'inicio_actividades': (data.get('inicio_actividades') or '').strip(),
+        'matricula':          (data.get('matricula') or '').strip(),
+        'logo_path':          (data.get('logo_path') or '').strip(),
     })
     return jsonify({'ok': True, 'id': empresa_id})
 
@@ -276,6 +278,8 @@ def api_empresa_edit(empresa_id):
         'localidad':          (data.get('localidad') or '').strip(),
         'ing_brutos':         (data.get('ing_brutos') or '').strip(),
         'inicio_actividades': (data.get('inicio_actividades') or '').strip(),
+        'matricula':          (data.get('matricula') or '').strip(),
+        'logo_path':          (data.get('logo_path') or '').strip(),
     })
     return jsonify({'ok': True})
 
@@ -288,6 +292,35 @@ def api_empresa_delete(empresa_id):
         if os.path.exists(path):
             os.remove(path)
     return jsonify({'ok': True})
+
+@app.route('/api/upload-logo', methods=['POST'])
+@admin_required
+def api_upload_logo():
+    f = request.files.get('logo')
+    if not f or not f.filename:
+        return jsonify({'error': 'No se recibió ningún archivo'}), 400
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext not in ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'):
+        return jsonify({'error': 'Formato no válido (use PNG o JPG)'}), 400
+    logos_dir = os.path.join(BASE, 'static', 'logos')
+    os.makedirs(logos_dir, exist_ok=True)
+    filename = str(uuid.uuid4()) + ext
+    path = os.path.join(logos_dir, filename)
+    f.save(path)
+    return jsonify({'path': path, 'url': f'/static/logos/{filename}'})
+
+@app.route('/api/logo-preview')
+@login_required
+def api_logo_preview():
+    path = request.args.get('path', '')
+    try:
+        rp   = os.path.realpath(path)
+        base = os.path.realpath(BASE)
+        if not rp.startswith(base) or not os.path.isfile(rp):
+            return '', 404
+    except Exception:
+        return '', 404
+    return send_file(rp)
 
 
 # ---------- API usuarios ------------------------------------------------------
