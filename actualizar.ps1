@@ -1,5 +1,5 @@
 # ARCA Facturacion - Actualizador
-$BASE    = 'D:\Arca-Facturacion'
+$BASE    = $PSScriptRoot
 $REPO    = 'https://github.com/frodriguez77/Arca-Facturacion.git'
 $BRANCH  = 'claude/new-pc-download-setup-5AF1K'
 
