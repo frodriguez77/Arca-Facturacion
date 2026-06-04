@@ -351,20 +351,34 @@ def api_upload_cert():
     if not empresa:
         return jsonify({'error': 'Empresa no encontrada'}), 400
 
-    f = request.files.get('cert_file')
-    if not f or not f.filename:
-        return jsonify({'error': 'No se recibió ningún archivo'}), 400
-    if not f.filename.lower().endswith('.crt'):
-        return jsonify({'error': 'El archivo debe tener extensión .crt'}), 400
-
     cuit     = empresa['cuit']
     cert_dir = os.path.join(CERTS, cuit)
     os.makedirs(cert_dir, exist_ok=True)
-    cert_path = os.path.join(cert_dir, f'{cuit}.crt')
-    f.save(cert_path)
 
-    EmpresaRepository.update(empresa_id, {'cert': cert_path})
-    return jsonify({'ok': True, 'cert_path': cert_path})
+    resultado = {}
+
+    f_cert = request.files.get('cert_file')
+    if f_cert and f_cert.filename:
+        if not f_cert.filename.lower().endswith('.crt'):
+            return jsonify({'error': 'El certificado debe tener extensión .crt'}), 400
+        cert_path = os.path.join(cert_dir, f'{cuit}.crt')
+        f_cert.save(cert_path)
+        EmpresaRepository.update(empresa_id, {'cert': cert_path})
+        resultado['cert_path'] = cert_path
+
+    f_key = request.files.get('key_file')
+    if f_key and f_key.filename:
+        if not f_key.filename.lower().endswith('.key'):
+            return jsonify({'error': 'La clave privada debe tener extensión .key'}), 400
+        key_path = os.path.join(cert_dir, f'{cuit}_clave.key')
+        f_key.save(key_path)
+        EmpresaRepository.update(empresa_id, {'key': key_path})
+        resultado['key_path'] = key_path
+
+    if not resultado:
+        return jsonify({'error': 'No se recibió ningún archivo'}), 400
+
+    return jsonify({'ok': True, **resultado})
 
 
 @app.route('/api/logo-preview')

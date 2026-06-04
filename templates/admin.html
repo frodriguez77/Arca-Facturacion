@@ -184,6 +184,15 @@
             <input type="text" class="form-control" id="f-key"
                    placeholder="{{ certs_dir }}\CUIT\CUIT_clave.key">
             <div class="form-text">Requerido solo para emitir facturas a AFIP. Se completa automáticamente al ingresar el CUIT.</div>
+            <div class="mt-2 d-flex align-items-center gap-2 flex-wrap">
+              <input type="file" id="f-key-file" accept=".key" class="d-none">
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-elegir-key">
+                <i class="bi bi-upload"></i> Subir .key de AFIP
+              </button>
+              <span id="key-file-nombre" class="text-muted small"></span>
+              <span id="key-upload-ok"  class="text-success small d-none"><i class="bi bi-check-circle-fill"></i> Clave guardada</span>
+              <span id="key-upload-err" class="text-danger  small d-none"></span>
+            </div>
           </div>
         </div>
 
@@ -1062,6 +1071,10 @@ function limpiarForm() {
   document.getElementById('cert-file-nombre').textContent = '';
   document.getElementById('cert-upload-ok').classList.add('d-none');
   document.getElementById('cert-upload-err').classList.add('d-none');
+  document.getElementById('f-key-file').value = '';
+  document.getElementById('key-file-nombre').textContent = '';
+  document.getElementById('key-upload-ok').classList.add('d-none');
+  document.getElementById('key-upload-err').classList.add('d-none');
   document.getElementById('f-homo').checked = false;
   document.getElementById('f-smtp-ssl').checked = false;
   document.getElementById('form-titulo').innerHTML =
@@ -1113,23 +1126,31 @@ document.getElementById('form-empresa').addEventListener('submit', async e => {
     } else {
       const empresaId = editando ? id : data.id;
 
-      // Si hay un .crt seleccionado, subirlo ahora que ya tenemos el empresa_id
+      // Si hay .crt y/o .key seleccionados, subirlos en un solo request
       const certFile = document.getElementById('f-cert-file').files[0];
-      if (certFile && empresaId) {
+      const keyFile  = document.getElementById('f-key-file').files[0];
+      if ((certFile || keyFile) && empresaId) {
         const fd = new FormData();
         fd.append('empresa_id', empresaId);
-        fd.append('cert_file',  certFile);
+        if (certFile) fd.append('cert_file', certFile);
+        if (keyFile)  fd.append('key_file',  keyFile);
         try {
           const cr   = await fetch('/api/upload-cert', { method: 'POST', body: fd });
           const cdat = await cr.json();
           if (cdat.error) {
-            mostrarNotif('Empresa guardada, pero error al subir el certificado: ' + cdat.error, 'warning');
+            mostrarNotif('Empresa guardada, pero error al subir credenciales: ' + cdat.error, 'warning');
           } else {
-            document.getElementById('f-cert').value = cdat.cert_path;
-            document.getElementById('cert-upload-ok').classList.remove('d-none');
+            if (cdat.cert_path) {
+              document.getElementById('f-cert').value = cdat.cert_path;
+              document.getElementById('cert-upload-ok').classList.remove('d-none');
+            }
+            if (cdat.key_path) {
+              document.getElementById('f-key').value = cdat.key_path;
+              document.getElementById('key-upload-ok').classList.remove('d-none');
+            }
           }
         } catch (cerr) {
-          mostrarNotif('Empresa guardada, pero error al subir el certificado: ' + cerr, 'warning');
+          mostrarNotif('Empresa guardada, pero error al subir credenciales: ' + cerr, 'warning');
         }
       }
 
@@ -1143,16 +1164,25 @@ document.getElementById('form-empresa').addEventListener('submit', async e => {
   }
 });
 
-// --- Subir certificado .crt ---------------------------------------------------
+// --- Subir credenciales AFIP (.crt / .key) ------------------------------------
 document.getElementById('btn-elegir-cert').addEventListener('click', () => {
   document.getElementById('f-cert-file').click();
 });
-
 document.getElementById('f-cert-file').addEventListener('change', () => {
   const file = document.getElementById('f-cert-file').files[0];
   document.getElementById('cert-file-nombre').textContent = file ? file.name : '';
   document.getElementById('cert-upload-ok').classList.add('d-none');
   document.getElementById('cert-upload-err').classList.add('d-none');
+});
+
+document.getElementById('btn-elegir-key').addEventListener('click', () => {
+  document.getElementById('f-key-file').click();
+});
+document.getElementById('f-key-file').addEventListener('change', () => {
+  const file = document.getElementById('f-key-file').files[0];
+  document.getElementById('key-file-nombre').textContent = file ? file.name : '';
+  document.getElementById('key-upload-ok').classList.add('d-none');
+  document.getElementById('key-upload-err').classList.add('d-none');
 });
 
 async function eliminarEmpresa(id, nombre) {
