@@ -51,9 +51,15 @@ $archivos = @(
     'factura_pdf.py',
     'wsfe.py',
     'wsaa.py',
+    'config.py',
+    'repository.py',
+    'openssl_util.py',
+    'iniciar_arca.vbs',
     'templates/admin.html',
     'templates/index.html',
-    'templates/reportes.html'
+    'templates/reportes.html',
+    'templates/login.html',
+    'templates/error.html'
 )
 foreach ($f in $archivos) {
     git checkout origin/$BRANCH -- $f
