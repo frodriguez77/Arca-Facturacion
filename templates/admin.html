@@ -39,6 +39,12 @@
   </div>
 </div>
 
+<div id="banner-update" class="d-none alert alert-warning alert-dismissible fade show rounded-0 mb-0 py-2 text-center small" role="alert">
+  <i class="bi bi-arrow-up-circle-fill"></i>
+  Nueva versión disponible: <strong id="banner-version-nueva"></strong> — Ejecutá <code>actualizar.ps1</code> para actualizar.
+  <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
+</div>
+
 <div class="container pb-5" style="max-width:900px">
 
   <!-- Pestañas -->
@@ -1462,6 +1468,17 @@ document.getElementById('form-csr').addEventListener('submit', async e => {
     btn.innerHTML = '<i class="bi bi-key-fill"></i> Generar y descargar ZIP';
   }
 });
+
+// --- Verificación de actualizaciones (una vez por día, sin bloquear) ----------
+fetch('/api/check-update')
+  .then(r => r.json())
+  .then(d => {
+    if (d.update && d.latest) {
+      document.getElementById('banner-version-nueva').textContent = 'v' + d.latest;
+      document.getElementById('banner-update').classList.remove('d-none');
+    }
+  })
+  .catch(() => {});
 </script>
 </body>
 </html>

@@ -33,6 +33,9 @@ CERTS  = os.path.join(BASE, 'certificados')
 _version_path = os.path.join(BASE, 'VERSION')
 APP_VERSION   = open(_version_path).read().strip() if os.path.exists(_version_path) else '—'
 
+_UPDATE_URL   = 'https://raw.githubusercontent.com/frodriguez77/Arca-Facturacion/claude/new-pc-download-setup-5AF1K/VERSION'
+_update_cache = {'latest': None, 'checked_at': None}
+
 @app.context_processor
 def _inject_version():
     return {'app_version': APP_VERSION}
@@ -1582,6 +1585,33 @@ def api_reportes_exportar():
 
 EMPRESAS_FILE = os.path.join(BASE, 'empresas.json')
 USUARIOS_FILE = os.path.join(BASE, 'usuarios.json')
+
+
+@app.route('/api/check-update')
+@login_required
+def api_check_update():
+    import urllib.request
+    from datetime import timedelta
+
+    now = datetime.now()
+    # Consultar GitHub como máximo una vez por día
+    if _update_cache['checked_at'] and (now - _update_cache['checked_at']) < timedelta(hours=24):
+        latest = _update_cache['latest']
+    else:
+        try:
+            with urllib.request.urlopen(_UPDATE_URL, timeout=4) as r:
+                latest = r.read().decode().strip()
+            _update_cache['latest']     = latest
+            _update_cache['checked_at'] = now
+        except Exception:
+            latest = None
+
+    return jsonify({
+        'current': APP_VERSION,
+        'latest':  latest,
+        'update':  bool(latest and latest != APP_VERSION),
+    })
+
 
 @app.route('/admin/backup')
 @admin_required
