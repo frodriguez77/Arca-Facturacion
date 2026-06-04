@@ -342,6 +342,31 @@ def api_upload_logo():
     f.save(path)
     return jsonify({'path': path, 'url': f'/static/logos/{filename}'})
 
+
+@app.route('/api/upload-cert', methods=['POST'])
+@admin_required
+def api_upload_cert():
+    empresa_id = (request.form.get('empresa_id') or '').strip()
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 400
+
+    f = request.files.get('cert_file')
+    if not f or not f.filename:
+        return jsonify({'error': 'No se recibió ningún archivo'}), 400
+    if not f.filename.lower().endswith('.crt'):
+        return jsonify({'error': 'El archivo debe tener extensión .crt'}), 400
+
+    cuit     = empresa['cuit']
+    cert_dir = os.path.join(CERTS, cuit)
+    os.makedirs(cert_dir, exist_ok=True)
+    cert_path = os.path.join(cert_dir, f'{cuit}.crt')
+    f.save(cert_path)
+
+    EmpresaRepository.update(empresa_id, {'cert': cert_path})
+    return jsonify({'ok': True, 'cert_path': cert_path})
+
+
 @app.route('/api/logo-preview')
 @login_required
 def api_logo_preview():
