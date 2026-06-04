@@ -56,6 +56,7 @@ $archivos = @(
     'openssl_util.py',
     'iniciar_arca.vbs',
     'crear_acceso_directo.bat',
+    'actualizar.bat',
     'templates/admin.html',
     'templates/index.html',
     'templates/reportes.html',
