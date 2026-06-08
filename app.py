@@ -7,7 +7,7 @@ import subprocess
 import traceback
 import uuid
 import zipfile
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import (Flask, jsonify, redirect, render_template,
                    request, send_file, session, url_for)
@@ -1585,6 +1585,157 @@ def api_reportes_exportar():
 
 EMPRESAS_FILE = os.path.join(BASE, 'empresas.json')
 USUARIOS_FILE = os.path.join(BASE, 'usuarios.json')
+
+# --- Mapeos para importación desde AFIP --------------------------------------
+_AFIP_DOC_TIPO = {
+    'CUIT': 80, 'CUIL': 86, 'CDI': 87, 'LE': 91, 'LC': 90,
+    'DNI': 96, 'PASAPORTE': 94, 'CI EXTRANJERA': 89,
+    'SIN IDENTIFICAR': 99, '': 99,
+}
+
+def _afip_doc_tipo(s: str) -> int:
+    return _AFIP_DOC_TIPO.get(str(s or '').strip().upper(), 99)
+
+def _afip_tipo_cbte(s: str) -> int:
+    m = re.match(r'^\s*(\d+)', str(s or ''))
+    return int(m.group(1)) if m else 0
+
+def _afip_alicuota(row: dict) -> float:
+    for col, rate in [('IVA 27%', 27), ('IVA 21%', 21),
+                      ('IVA 10,5%', 10.5), ('IVA 5%', 5), ('IVA 2,5%', 2.5)]:
+        try:
+            if row.get(col) and float(row[col]) > 0:
+                return rate
+        except (ValueError, TypeError):
+            pass
+    return 0
+
+
+@app.route('/api/importar-afip', methods=['POST'])
+@admin_required
+def api_importar_afip():
+    empresa_id = (request.form.get('empresa_id') or '').strip()
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 400
+
+    f = request.files.get('archivo')
+    if not f or not f.filename:
+        return jsonify({'error': 'No se recibió ningún archivo'}), 400
+    if not f.filename.lower().endswith(('.xlsx', '.xls')):
+        return jsonify({'error': 'El archivo debe ser .xlsx'}), 400
+
+    EXCEL_HEADERS = COLUMNAS + ['Nro_Cbte', 'Resultado', 'CAE', 'Vto_CAE', 'Observaciones']
+
+    try:
+        wb_src = load_workbook(f)
+        ws_src = wb_src.active
+
+        # Detectar fila de encabezados: fila 1 o fila 2 (AFIP pone título en fila 1)
+        fila_headers = 1
+        if ws_src.cell(1, 1).value and ws_src.cell(2, 1).value == 'Fecha':
+            fila_headers = 2
+
+        headers = [str(ws_src.cell(fila_headers, c).value or '').strip()
+                   for c in range(1, ws_src.max_column + 1)]
+
+        importados = 0
+        duplicados = 0
+        errores    = []
+        meses_ok   = set()
+
+        for row_idx in range(fila_headers + 1, ws_src.max_row + 1):
+            row = {headers[i]: ws_src.cell(row_idx, i + 1).value
+                   for i in range(len(headers))}
+
+            fecha_raw = row.get('Fecha')
+            if not fecha_raw:
+                continue
+
+            try:
+                # Fecha: puede venir como datetime o string DD/MM/YYYY
+                if hasattr(fecha_raw, 'strftime'):
+                    fecha_dt = fecha_raw
+                else:
+                    fecha_dt = datetime.strptime(str(fecha_raw).strip(), '%d/%m/%Y')
+
+                mes      = fecha_dt.strftime('%Y-%m')
+                fecha_str = fecha_dt.strftime('%Y-%m-%d')
+                vto_cae  = (fecha_dt + timedelta(days=10)).strftime('%Y-%m-%d')
+
+                tipo_cbte  = _afip_tipo_cbte(row.get('Tipo', ''))
+                punto_venta = int(float(row.get('Punto de Venta') or 1))
+                nro_cbte   = int(float(row.get('Número Desde') or 0))
+                cae        = _str_cae(row.get('Cód. Autorización', ''))
+                doc_tipo   = _afip_doc_tipo(row.get('Tipo Doc. Receptor', ''))
+                doc_nro_raw = row.get('Nro. Doc. Receptor', 0)
+                doc_nro    = str(int(float(doc_nro_raw or 0))) if doc_nro_raw else '0'
+                razon_social = str(row.get('Denominación Receptor') or '').strip()
+
+                imp_total  = round(float(row.get('Imp. Total') or 0), 2)
+                imp_iva    = round(float(row.get('Total IVA') or 0), 2)
+                neto_grav  = row.get('Neto Gravado Total')
+                imp_neto   = round(float(neto_grav), 2) if neto_grav else round(imp_total - imp_iva, 2)
+                alicuota   = _afip_alicuota(row)
+
+                # Ruta del resultado para este mes
+                dest_path = _resultado_path(empresa_id, mes)
+                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+                # Verificar duplicado por CAE
+                if cae and os.path.exists(dest_path):
+                    wb_chk = load_workbook(dest_path)
+                    ws_chk = wb_chk.active
+                    hdrs_chk = [str(ws_chk.cell(1, c).value or '').strip().lower()
+                                for c in range(1, ws_chk.max_column + 1)]
+                    try:
+                        cae_col = hdrs_chk.index('cae') + 1
+                        for cr in range(2, ws_chk.max_row + 1):
+                            if _str_cae(ws_chk.cell(cr, cae_col).value) == cae:
+                                duplicados += 1
+                                raise StopIteration
+                    except StopIteration:
+                        continue
+
+                # Crear o cargar el destino
+                if os.path.exists(dest_path):
+                    wb_dest = load_workbook(dest_path)
+                    ws_dest = wb_dest.active
+                else:
+                    wb_dest = Workbook()
+                    ws_dest = wb_dest.active
+                    for ci, h in enumerate(EXCEL_HEADERS, 1):
+                        ws_dest.cell(1, ci, h)
+
+                verde = PatternFill(fill_type='solid', fgColor='C6EFCE')
+                vals  = [
+                    punto_venta, tipo_cbte, 1, doc_tipo, doc_nro,
+                    razon_social, fecha_str, imp_neto, alicuota, imp_iva, imp_total,
+                    nro_cbte, 'APROBADO', cae, vto_cae, 'Importado de AFIP',
+                ]
+                new_row = ws_dest.max_row + 1
+                for ci, v in enumerate(vals, 1):
+                    ws_dest.cell(new_row, ci, v).fill = verde
+
+                wb_dest.save(dest_path)
+                importados += 1
+                meses_ok.add(mes)
+
+            except StopIteration:
+                pass
+            except Exception as ex:
+                errores.append(f'Fila {row_idx}: {ex}')
+
+        return jsonify({
+            'ok':        True,
+            'importados': importados,
+            'duplicados': duplicados,
+            'errores':    errores[:10],
+            'meses':      sorted(meses_ok),
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/check-update')

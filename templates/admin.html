@@ -84,6 +84,13 @@
         <span class="ms-1">5. Correo</span>
       </button>
     </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-importar-btn" data-bs-toggle="tab"
+              data-bs-target="#tab-importar" type="button" role="tab">
+        <i class="bi bi-file-earmark-arrow-up text-success"></i>
+        <span class="ms-1">6. Importar AFIP</span>
+      </button>
+    </li>
   </ul>
 
   <div class="tab-content" id="adminTabsContent">
@@ -898,6 +905,42 @@
       </div><!-- /acordeonEmail -->
     </div><!-- /tab-email -->
 
+    <!-- ===== TAB 6: Importar AFIP ===== -->
+    <div class="tab-pane fade" id="tab-importar" role="tabpanel">
+
+      <h5 class="mb-1">Importar comprobantes desde AFIP</h5>
+      <p class="text-muted small mb-4">
+        Descargá el Excel de comprobantes desde <strong>AFIP → Mis Comprobantes Emitidos</strong>
+        y subilo acá. El sistema los importa automáticamente al mes correspondiente de cada empresa
+        y quedan disponibles en los reportes. Los comprobantes ya existentes no se duplican.
+      </p>
+
+      <div class="row g-3 mb-4" style="max-width:560px">
+        <div class="col-12">
+          <label class="form-label fw-semibold">Empresa <span class="text-danger">*</span></label>
+          <select class="form-select" id="imp-empresa">
+            <option value="">— Seleccioná una empresa —</option>
+            {% for e in empresas %}
+            <option value="{{ e.id }}">{{ e.nombre }} ({{ e.cuit }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Archivo Excel de AFIP <span class="text-danger">*</span></label>
+          <input type="file" class="form-control" id="imp-archivo" accept=".xlsx,.xls">
+          <div class="form-text">El archivo se llama "Mis_Comprobantes_Emitidos_CUIT_..."</div>
+        </div>
+        <div class="col-12">
+          <button type="button" class="btn btn-success" id="btn-importar">
+            <i class="bi bi-file-earmark-arrow-up"></i> Importar
+          </button>
+        </div>
+      </div>
+
+      <div id="imp-resultado" class="d-none"></div>
+
+    </div><!-- /tab-importar -->
+
   </div><!-- /tab-content -->
 </div><!-- /container -->
 
@@ -1497,6 +1540,53 @@ fetch('/api/check-update')
     }
   })
   .catch(() => {});
+
+// ===== IMPORTAR AFIP =========================================================
+document.getElementById('btn-importar').addEventListener('click', async () => {
+  const empresaId = document.getElementById('imp-empresa').value;
+  const archivo   = document.getElementById('imp-archivo').files[0];
+  const resDiv    = document.getElementById('imp-resultado');
+
+  if (!empresaId) { mostrarNotif('Seleccioná una empresa.', 'danger'); return; }
+  if (!archivo)   { mostrarNotif('Seleccioná el archivo Excel de AFIP.', 'danger'); return; }
+
+  const btn = document.getElementById('btn-importar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Importando...';
+  resDiv.classList.add('d-none');
+
+  try {
+    const fd = new FormData();
+    fd.append('empresa_id', empresaId);
+    fd.append('archivo', archivo);
+    const resp = await fetch('/api/importar-afip', { method: 'POST', body: fd });
+    const data = await resp.json();
+
+    if (data.error) {
+      resDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+    } else {
+      let html = `<div class="alert alert-success">
+        <strong>Importación completada</strong><br>
+        <i class="bi bi-check-circle"></i> Importados: <strong>${data.importados}</strong> &nbsp;
+        <i class="bi bi-skip-forward"></i> Duplicados omitidos: <strong>${data.duplicados}</strong>`;
+      if (data.meses && data.meses.length) {
+        html += `<br><i class="bi bi-calendar3"></i> Meses actualizados: ${data.meses.join(', ')}`;
+      }
+      if (data.errores && data.errores.length) {
+        html += `<br><span class="text-warning"><i class="bi bi-exclamation-triangle"></i> Filas con error: ${data.errores.join(' | ')}</span>`;
+      }
+      html += `</div>`;
+      resDiv.innerHTML = html;
+      document.getElementById('imp-archivo').value = '';
+    }
+  } catch (err) {
+    resDiv.innerHTML = `<div class="alert alert-danger">Error de red: ${err}</div>`;
+  } finally {
+    resDiv.classList.remove('d-none');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-file-earmark-arrow-up"></i> Importar';
+  }
+});
 </script>
 </body>
 </html>
