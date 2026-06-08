@@ -242,6 +242,9 @@
             <input type="file" class="form-control" id="f-logo-file" accept=".png,.jpg,.jpeg">
             <input type="hidden" id="f-logo-path">
             <div id="f-logo-preview" class="mt-2"></div>
+            <button type="button" class="btn btn-outline-danger btn-sm mt-2 d-none" id="btn-quitar-logo">
+              <i class="bi bi-x-circle"></i> Quitar logo
+            </button>
           </div>
         </div>
 
@@ -985,6 +988,10 @@ document.getElementById('f-cuit').addEventListener('input', function () {
 });
 
 // ===== UPLOAD LOGO ===========================================================
+function _mostrarBtnQuitarLogo(mostrar) {
+  document.getElementById('btn-quitar-logo').classList.toggle('d-none', !mostrar);
+}
+
 document.getElementById('f-logo-file').addEventListener('change', async function () {
   const file = this.files[0];
   if (!file) return;
@@ -999,10 +1006,18 @@ document.getElementById('f-logo-file').addEventListener('change', async function
       document.getElementById('f-logo-path').value = data.path;
       document.getElementById('f-logo-preview').innerHTML =
         `<img src="${data.url}" style="max-height:60px; border:1px solid #dee2e6; border-radius:4px; padding:2px;" alt="Logo">`;
+      _mostrarBtnQuitarLogo(true);
     }
   } catch (err) {
     mostrarNotif('Error de red al subir logo: ' + err, 'danger');
   }
+});
+
+document.getElementById('btn-quitar-logo').addEventListener('click', () => {
+  document.getElementById('f-logo-path').value     = '';
+  document.getElementById('f-logo-file').value     = '';
+  document.getElementById('f-logo-preview').innerHTML = '';
+  _mostrarBtnQuitarLogo(false);
 });
 
 
@@ -1038,8 +1053,10 @@ function editarEmpresa(e) {
   if (e.logo_path) {
     prev.innerHTML = `<img src="/api/logo-preview?path=${encodeURIComponent(e.logo_path)}"
         style="max-height:60px; border:1px solid #dee2e6; border-radius:4px; padding:2px;" alt="Logo">`;
+    _mostrarBtnQuitarLogo(true);
   } else {
     prev.innerHTML = '';
+    _mostrarBtnQuitarLogo(false);
   }
   document.getElementById('f-smtp-server').value   = e.smtp_server      || '';
   document.getElementById('f-smtp-port').value     = e.smtp_port        || '';
@@ -1073,6 +1090,7 @@ function limpiarForm() {
     });
   document.getElementById('f-logo-file').value = '';
   document.getElementById('f-logo-preview').innerHTML = '';
+  _mostrarBtnQuitarLogo(false);
   document.getElementById('f-cert-file').value = '';
   document.getElementById('cert-file-nombre').textContent = '';
   document.getElementById('cert-upload-ok').classList.add('d-none');
