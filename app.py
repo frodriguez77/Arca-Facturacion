@@ -19,6 +19,7 @@ from openpyxl.styles import PatternFill
 import config
 import wsaa
 import wsfe
+import wspadron
 import factura_pdf
 from openssl_util import encontrar_openssl
 from repository import EmpresaRepository, UsuarioRepository
@@ -762,6 +763,37 @@ def api_meses_disponibles():
             and os.path.exists(os.path.join(base_dir, d, 'facturas_resultado.xlsx'))
         ], reverse=True)
     return jsonify({'meses': meses})
+
+
+@app.route('/api/consultar-cuit')
+@login_required
+def api_consultar_cuit():
+    user       = _get_current_user()
+    empresa_id = request.args.get('empresa_id', '').strip()
+    cuit_consulta = re.sub(r'[^0-9]', '', request.args.get('cuit', ''))
+
+    empresa = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 400
+    if not _user_can_access(user, empresa_id):
+        return jsonify({'error': 'Acceso denegado'}), 403
+    if not re.fullmatch(r'\d{11}', cuit_consulta):
+        return jsonify({'error': 'El CUIT debe tener 11 dígitos sin guiones'}), 400
+
+    cert_path = empresa.get('cert', '')
+    key_path  = empresa.get('key', '')
+    if not os.path.isfile(cert_path) or not os.path.isfile(key_path):
+        return jsonify({'error': 'Esta empresa no tiene certificados configurados'}), 400
+
+    wsaa_url  = _empresa_urls(empresa)[0]
+    padron_wsdl = wspadron.PADRON_WSDL_HOMO if empresa.get('homologacion') else wspadron.PADRON_WSDL_PROD
+
+    try:
+        token, sign = wsaa.get_ticket('ws_sr_padron_a4', cert_path, key_path, wsaa_url, empresa['cuit'])
+        data = wspadron.consultar_persona(token, sign, empresa['cuit'], cuit_consulta, padron_wsdl)
+        return jsonify({'ok': True, **data})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 def _emitir_comprobante_asociado(tipo_map, label, empresa_id, mes_orig, fila, user):

@@ -53,6 +53,8 @@ git checkout origin/%BRANCH% -- wsaa.py            && echo  [OK] wsaa.py
 git checkout origin/%BRANCH% -- config.py          && echo  [OK] config.py
 git checkout origin/%BRANCH% -- repository.py      && echo  [OK] repository.py
 git checkout origin/%BRANCH% -- openssl_util.py    && echo  [OK] openssl_util.py
+git checkout origin/%BRANCH% -- wspadron.py        && echo  [OK] wspadron.py
+git checkout origin/%BRANCH% -- config.py          && echo  [OK] config.py
 git checkout origin/%BRANCH% -- iniciar_arca.vbs   && echo  [OK] iniciar_arca.vbs
 git checkout origin/%BRANCH% -- crear_acceso_directo.bat && echo  [OK] crear_acceso_directo.bat
 git checkout origin/%BRANCH% -- templates/admin.html    && echo  [OK] templates/admin.html

@@ -358,7 +358,14 @@
           </div>
           <div class="col-12 col-md-4">
             <label class="form-label fw-semibold">Nro. documento</label>
-            <input type="text" class="form-control" id="man-doc-nro" placeholder="Ej: 20123456789">
+            <div class="input-group">
+              <input type="text" class="form-control" id="man-doc-nro" placeholder="Ej: 20123456789">
+              <button class="btn btn-outline-primary btn-sm" type="button" id="btn-buscar-cuit"
+                      title="Consultar datos en AFIP">
+                <i class="bi bi-search"></i>
+              </button>
+            </div>
+            <div id="man-cuit-info" class="form-text d-none text-success"></div>
           </div>
           <div class="col-12 col-md-5">
             <label class="form-label fw-semibold">Razón social <span class="text-danger">*</span></label>
@@ -860,6 +867,44 @@ document.getElementById('btn-enviar-todos').addEventListener('click', async () =
   } finally {
     btn.disabled = false;
     btn.innerHTML = `<i class="bi bi-envelope-check"></i> Enviar a todos (<span id="count-con-email">${total}</span>)`;
+  }
+});
+
+// --- Consulta CUIT en Padrón AFIP -------------------------------------------
+document.getElementById('btn-buscar-cuit').addEventListener('click', async () => {
+  if (!empresaActual) { alert('Seleccioná una empresa primero.'); return; }
+
+  const docTipo = document.getElementById('man-doc-tipo').value;
+  if (docTipo !== '80') { alert('La consulta al padrón solo está disponible para CUIT.'); return; }
+
+  const cuit = document.getElementById('man-doc-nro').value.replace(/\D/g, '');
+  if (cuit.length !== 11) { alert('El CUIT debe tener 11 dígitos.'); return; }
+
+  const btn = document.getElementById('btn-buscar-cuit');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+  const infoDiv = document.getElementById('man-cuit-info');
+  infoDiv.classList.add('d-none');
+
+  try {
+    const resp = await fetch(`/api/consultar-cuit?empresa_id=${empresaActual.id}&cuit=${cuit}`);
+    const data = await resp.json();
+    if (data.error) {
+      alert('Error al consultar AFIP: ' + data.error);
+    } else {
+      document.getElementById('man-razon').value = data.razon_social || '';
+      infoDiv.textContent = [
+        data.estado ? `Estado: ${data.estado}` : '',
+        data.domicilio ? `Domicilio: ${data.domicilio}` : '',
+      ].filter(Boolean).join(' — ');
+      infoDiv.classList.remove('d-none');
+    }
+  } catch (e) {
+    alert('Error de red: ' + e);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-search"></i>';
   }
 });
 

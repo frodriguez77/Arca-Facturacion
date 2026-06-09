@@ -54,6 +54,7 @@ $archivos = @(
     'config.py',
     'repository.py',
     'openssl_util.py',
+    'wspadron.py',
     'iniciar_arca.vbs',
     'crear_acceso_directo.bat',
     'actualizar.bat',
