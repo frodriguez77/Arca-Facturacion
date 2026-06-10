@@ -59,7 +59,7 @@ Function GetLocalVersion()
         Exit Function
     End If
     Dim ts : Set ts = objFSO.OpenTextFile(f, 1)
-    GetLocalVersion = Trim(ts.ReadLine())
+    GetLocalVersion = LimpiarVer(ts.ReadAll())
     ts.Close
     On Error GoTo 0
 End Function
@@ -72,11 +72,19 @@ Function GetRemoteVersion()
     http.SetTimeouts 500, 500, 4000, 4000
     http.Send
     If Err.Number = 0 And http.Status = 200 Then
-        GetRemoteVersion = Trim(http.ResponseText)
+        GetRemoteVersion = LimpiarVer(http.ResponseText)
     Else
         GetRemoteVersion = ""
     End If
     On Error GoTo 0
+End Function
+
+' Trim() en VBScript NO elimina Chr(10)/Chr(13), solo espacios.
+' Esta funcion los elimina para poder comparar versiones correctamente.
+Function LimpiarVer(s)
+    s = Replace(s, Chr(13), "")
+    s = Replace(s, Chr(10), "")
+    LimpiarVer = Trim(s)
 End Function
 
 Function PrepararArcaExe()
