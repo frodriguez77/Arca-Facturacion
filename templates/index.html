@@ -151,7 +151,17 @@
   <!-- PASO 2 - Previsualizar -->
   <div class="card mb-4 d-none" id="card-preview">
     <div class="card-body p-4">
-      <h5 class="mb-3"><span class="step-num me-2">2</span>Previsualizar comprobantes</h5>
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h5 class="mb-0"><span class="step-num me-2">2</span>Previsualizar comprobantes</h5>
+        <div class="d-flex gap-2">
+          <button class="btn btn-success" id="btn-send">
+            <i class="bi bi-send-fill"></i> Enviar a ARCA
+          </button>
+          <button class="btn btn-outline-secondary" id="btn-back">
+            <i class="bi bi-arrow-left"></i> Cargar otro
+          </button>
+        </div>
+      </div>
       <div id="preview-info" class="alert alert-info"></div>
       <div class="table-responsive" style="max-height:320px;overflow-y:auto;">
         <table class="table table-sm table-hover align-middle" id="tbl-preview">
@@ -159,27 +169,28 @@
           <tbody></tbody>
         </table>
       </div>
-      <div class="mt-3 d-flex gap-2 flex-wrap">
-        <button class="btn btn-success" id="btn-send">
-          <i class="bi bi-send-fill"></i> Enviar a ARCA
-        </button>
-        <button class="btn btn-outline-secondary" id="btn-back">
-          <i class="bi bi-arrow-left"></i> Cargar otro
-        </button>
-      </div>
     </div>
   </div>
 
   <!-- PASO 3 - Resultados -->
   <div class="card d-none" id="card-result">
     <div class="card-body p-4">
-      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <h5 class="mb-0"><span class="step-num me-2">3</span>Resultados</h5>
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
           <i class="bi bi-calendar3 text-muted small"></i>
           <select id="sel-mes" class="form-select form-select-sm" style="min-width:130px" title="Filtrar por mes">
             <option value="">— mes —</option>
           </select>
+          <a id="btn-descargar" href="#" class="btn btn-success btn-sm">
+            <i class="bi bi-download"></i> Descargar Excel
+          </a>
+          <button class="btn btn-outline-primary btn-sm" id="btn-nuevo">
+            <i class="bi bi-plus-circle"></i> Nueva facturación
+          </button>
+          <button class="btn btn-outline-info btn-sm d-none" id="btn-enviar-todos">
+            <i class="bi bi-envelope-check"></i> Enviar a todos (<span id="count-con-email">0</span>)
+          </button>
         </div>
       </div>
 
@@ -216,17 +227,6 @@
         </table>
       </div>
 
-      <div class="mt-3 d-flex gap-2 flex-wrap">
-        <a id="btn-descargar" href="#" class="btn btn-success">
-          <i class="bi bi-download"></i> Descargar Excel con resultados
-        </a>
-        <button class="btn btn-outline-primary" id="btn-nuevo">
-          <i class="bi bi-plus-circle"></i> Nueva facturación
-        </button>
-        <button class="btn btn-outline-info d-none" id="btn-enviar-todos">
-          <i class="bi bi-envelope-check"></i> Enviar a todos (<span id="count-con-email">0</span>)
-        </button>
-      </div>
     </div>
   </div>
 
