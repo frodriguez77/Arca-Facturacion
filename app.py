@@ -19,7 +19,6 @@ from openpyxl.styles import PatternFill
 import config
 import wsaa
 import wsfe
-import wspadron
 import factura_pdf
 from openssl_util import encontrar_openssl
 from repository import EmpresaRepository, UsuarioRepository
@@ -785,7 +784,12 @@ def api_consultar_cuit():
     if not os.path.isfile(cert_path) or not os.path.isfile(key_path):
         return jsonify({'error': 'Esta empresa no tiene certificados configurados'}), 400
 
-    wsaa_url  = _empresa_urls(empresa)[0]
+    try:
+        import wspadron
+    except ImportError:
+        return jsonify({'error': 'Módulo wspadron no encontrado. Ejecutá actualizar.ps1 para obtenerlo.'}), 500
+
+    wsaa_url    = _empresa_urls(empresa)[0]
     padron_wsdl = wspadron.PADRON_WSDL_HOMO if empresa.get('homologacion') else wspadron.PADRON_WSDL_PROD
 
     try:
