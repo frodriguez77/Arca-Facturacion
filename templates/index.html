@@ -359,7 +359,8 @@
           <div class="col-12 col-md-4">
             <label class="form-label fw-semibold">Nro. documento</label>
             <div class="input-group">
-              <input type="text" class="form-control" id="man-doc-nro" placeholder="Ej: 20123456789">
+              <input type="text" inputmode="numeric" pattern="[0-9]*"
+                     class="form-control" id="man-doc-nro" placeholder="20123456789">
               <button class="btn btn-outline-primary btn-sm" type="button" id="btn-buscar-cuit"
                       title="Consultar datos en AFIP">
                 <i class="bi bi-search"></i>
@@ -868,6 +869,25 @@ document.getElementById('btn-enviar-todos').addEventListener('click', async () =
     btn.disabled = false;
     btn.innerHTML = `<i class="bi bi-envelope-check"></i> Enviar a todos (<span id="count-con-email">${total}</span>)`;
   }
+});
+
+// --- Campo Nro. documento: solo números, placeholder según tipo ---------------
+const _placeholderDocNro = {
+  '80': '20123456789',   // CUIT
+  '86': '20123456789',   // CUIL
+  '96': '12345678',      // DNI
+  '99': '0',             // Consumidor Final
+};
+
+document.getElementById('man-doc-tipo').addEventListener('change', function () {
+  const input = document.getElementById('man-doc-nro');
+  input.placeholder = _placeholderDocNro[this.value] || '0';
+  if (this.value === '99') { input.value = '0'; }
+  document.getElementById('man-cuit-info').classList.add('d-none');
+});
+
+document.getElementById('man-doc-nro').addEventListener('input', function () {
+  this.value = this.value.replace(/\D/g, '');
 });
 
 // --- Consulta CUIT en Padrón AFIP -------------------------------------------
