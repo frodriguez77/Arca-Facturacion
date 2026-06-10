@@ -834,7 +834,7 @@ def api_consultar_cuit():
     padron_wsdl = wspadron.PADRON_WSDL_HOMO if empresa.get('homologacion') else wspadron.PADRON_WSDL_PROD
 
     try:
-        token, sign = wsaa.get_ticket('ws_sr_padron_a4', cert_path, key_path, wsaa_url, empresa['cuit'])
+        token, sign = wsaa.get_ticket('ws_sr_padron_a13', cert_path, key_path, wsaa_url, empresa['cuit'])
         data = wspadron.consultar_persona(token, sign, empresa['cuit'], cuit_consulta, padron_wsdl)
 
         # Actualizar domicilio en base local si ya existe el cliente
@@ -1405,7 +1405,7 @@ def api_clientes_sync():
     padron_wsdl = wspadron.PADRON_WSDL_HOMO if empresa.get('homologacion') else wspadron.PADRON_WSDL_PROD
 
     try:
-        token, sign = wsaa.get_ticket('ws_sr_padron_a4', cert_path, key_path, wsaa_url, empresa['cuit'])
+        token, sign = wsaa.get_ticket('ws_sr_padron_a13', cert_path, key_path, wsaa_url, empresa['cuit'])
     except Exception as e:
         return jsonify({'error': f'Error obteniendo ticket AFIP: {e}'}), 500
 
