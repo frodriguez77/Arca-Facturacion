@@ -110,7 +110,7 @@ def _qr(cuit, pv, tipo, nro, fecha_raw, total, doc_tipo, doc_nro, cae):
     return buf
 
 # ── página ────────────────────────────────────────────────────────────────────
-def _page(c, titulo, emp, reg, res):
+def _page(c, titulo, emp, reg, res, cliente=None):
 
     # extraer datos
     cuit      = str(emp['cuit'])
@@ -140,6 +140,7 @@ def _page(c, titulo, emp, reg, res):
     nro_cbte  = int(res['nro'])
     cae       = str(res['cae'])
     vto_cae   = str(res.get('vto_cae',''))
+    cliente_domicilio = (cliente or {}).get('domicilio', '')
 
     letra    = TIPO_LETRA.get(tipo_cbte,'?')
     tipo_nom = TIPO_NOMBRE.get(tipo_cbte, f'Tipo {tipo_cbte}')
@@ -226,7 +227,13 @@ def _page(c, titulo, emp, reg, res):
              1.10*cm)
     fila_rec('Concepto',       conc_nom,   1.65*cm)
 
-    y_sep2 = yr - 2.20*cm
+    y_rec_extra = 0
+    if cliente_domicilio:
+        T(ML,      yr - 2.20*cm, 'Domicilio',                  sz=8, color=GRIS)
+        T(ML+pad,  yr - 2.20*cm, cliente_domicilio[:80],       sz=8)
+        y_rec_extra = 0.55*cm
+
+    y_sep2 = yr - 2.20*cm - y_rec_extra
     hline(y_sep2)
 
     # ── ÍTEMS ───────────────────────────────────────────────────────
@@ -307,7 +314,7 @@ def _page(c, titulo, emp, reg, res):
 
 
 # ── entrada pública ───────────────────────────────────────────────────────────
-def generar_pdf(empresa, registro, resultado):
+def generar_pdf(empresa, registro, resultado, cliente=None):
     """
     Retorna BytesIO con el PDF (ORIGINAL + DUPLICADO).
     empresa  : dict {nombre, cuit, domicilio, telefono, localidad,
@@ -316,12 +323,13 @@ def generar_pdf(empresa, registro, resultado):
                      razon_social, fecha, imp_neto, alicuota, imp_iva,
                      imp_total, descripcion (opcional)}
     resultado: dict {nro, cae, vto_cae}
+    cliente  : dict opcional {domicilio, nombre, estado} — domicilio fiscal del receptor
     """
     buf = io.BytesIO()
     c   = rl_canvas.Canvas(buf, pagesize=A4)
-    _page(c, 'ORIGINAL',  empresa, registro, resultado)
+    _page(c, 'ORIGINAL',  empresa, registro, resultado, cliente)
     c.showPage()
-    _page(c, 'DUPLICADO', empresa, registro, resultado)
+    _page(c, 'DUPLICADO', empresa, registro, resultado, cliente)
     c.save()
     buf.seek(0)
     return buf

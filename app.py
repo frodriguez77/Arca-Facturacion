@@ -26,9 +26,10 @@ from repository import EmpresaRepository, UsuarioRepository
 app = Flask(__name__)
 app.secret_key = 'arca_2026_secret_key_change_in_prod'
 
-BASE   = os.path.dirname(os.path.abspath(__file__))
-UPLOAD = os.path.join(BASE, 'uploads')
-CERTS  = os.path.join(BASE, 'certificados')
+BASE        = os.path.dirname(os.path.abspath(__file__))
+UPLOAD      = os.path.join(BASE, 'uploads')
+CERTS       = os.path.join(BASE, 'certificados')
+CLIENTES_DIR = os.path.join(BASE, 'clientes')
 
 _version_path = os.path.join(BASE, 'VERSION')
 APP_VERSION   = open(_version_path).read().strip() if os.path.exists(_version_path) else '—'
@@ -74,8 +75,9 @@ TIPO_NOMBRE = {
     211: 'FCE C',         213: 'NCE C',
 }
 
-os.makedirs(UPLOAD, exist_ok=True)
-os.makedirs(CERTS,  exist_ok=True)
+os.makedirs(UPLOAD,       exist_ok=True)
+os.makedirs(CERTS,        exist_ok=True)
+os.makedirs(CLIENTES_DIR, exist_ok=True)
 
 
 def _str_cae(v) -> str:
@@ -150,6 +152,34 @@ def _unique_id(base: str, exists_fn) -> str:
     if exists_fn(candidate):
         candidate = candidate + '_' + str(uuid.uuid4())[:4]
     return candidate
+
+
+# ---------- helpers de base de clientes ---------------------------------------
+
+def _clientes_path(empresa_id: str) -> str:
+    return os.path.join(CLIENTES_DIR, f'{empresa_id}.json')
+
+def _load_clientes(empresa_id: str) -> dict:
+    """Devuelve dict {cuit: {cuit, nombre, domicilio, estado}}."""
+    path = _clientes_path(empresa_id)
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding='utf-8') as f:
+        lista = json.load(f)
+    return {str(c['cuit']): c for c in lista}
+
+def _save_clientes(empresa_id: str, clientes: dict):
+    path = _clientes_path(empresa_id)
+    lista = sorted(clientes.values(), key=lambda x: x.get('nombre', ''))
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(lista, f, ensure_ascii=False, indent=2)
+
+def _get_cliente(empresa_id: str, doc_nro) -> dict | None:
+    """Devuelve el cliente por CUIT/doc_nro, o None si no existe."""
+    cuit = str(doc_nro).split('.')[0].strip()
+    if not cuit or cuit in ('0', ''):
+        return None
+    return _load_clientes(empresa_id).get(cuit)
 
 
 # ---------- inicialización ---------------------------------------------------
@@ -779,6 +809,17 @@ def api_consultar_cuit():
     if not re.fullmatch(r'\d{11}', cuit_consulta):
         return jsonify({'error': 'El CUIT debe tener 11 dígitos sin guiones'}), 400
 
+    # Buscar primero en la base local (rápido, sin AFIP)
+    cliente_local = _get_cliente(empresa_id, cuit_consulta)
+    if cliente_local and cliente_local.get('domicilio'):
+        return jsonify({
+            'ok':          True,
+            'razon_social': cliente_local.get('nombre', ''),
+            'domicilio':    cliente_local['domicilio'],
+            'estado':       cliente_local.get('estado', ''),
+            'fuente':       'local',
+        })
+
     cert_path = empresa.get('cert', '')
     key_path  = empresa.get('key', '')
     if not os.path.isfile(cert_path) or not os.path.isfile(key_path):
@@ -795,6 +836,14 @@ def api_consultar_cuit():
     try:
         token, sign = wsaa.get_ticket('ws_sr_padron_a4', cert_path, key_path, wsaa_url, empresa['cuit'])
         data = wspadron.consultar_persona(token, sign, empresa['cuit'], cuit_consulta, padron_wsdl)
+
+        # Actualizar domicilio en base local si ya existe el cliente
+        clientes = _load_clientes(empresa_id)
+        if cuit_consulta in clientes:
+            clientes[cuit_consulta]['domicilio'] = data.get('domicilio', '')
+            clientes[cuit_consulta]['estado']    = data.get('estado', '')
+            _save_clientes(empresa_id, clientes)
+
         return jsonify({'ok': True, **data})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1060,8 +1109,9 @@ def pdf_desde_resultado(empresa_id, fila):
             'cae':     _str_cae(row.get('cae', '')),
             'vto_cae': _str_cae(row.get('vto_cae', '')),
         }
+        cliente = _get_cliente(empresa_id, registro.get('doc_nro', ''))
 
-        pdf_buf = factura_pdf.generar_pdf(empresa, registro, resultado)
+        pdf_buf = factura_pdf.generar_pdf(empresa, registro, resultado, cliente=cliente)
         pv      = int(registro['punto_venta'])
         nro     = int(resultado['nro'])
         return send_file(pdf_buf, as_attachment=False,
@@ -1089,7 +1139,8 @@ def imprimir():
         return jsonify({'error': 'Faltan datos del comprobante'}), 400
 
     try:
-        pdf_buf = factura_pdf.generar_pdf(empresa, registro, resultado)
+        cliente = _get_cliente(empresa_id, registro.get('doc_nro', ''))
+        pdf_buf = factura_pdf.generar_pdf(empresa, registro, resultado, cliente=cliente)
         pv      = int(registro.get('punto_venta', 0))
         nro     = int(resultado.get('nro', 0))
         return send_file(pdf_buf, as_attachment=False,
@@ -1202,7 +1253,8 @@ def api_enviar_factura():
             'cae':     _str_cae(row.get('cae', '')),
             'vto_cae': _str_cae(row.get('vto_cae', '')),
         }
-        pdf_buf  = factura_pdf.generar_pdf(empresa, registro, resultado)
+        cliente  = _get_cliente(empresa_id, registro.get('doc_nro', ''))
+        pdf_buf  = factura_pdf.generar_pdf(empresa, registro, resultado, cliente=cliente)
         pv       = int(registro['punto_venta'])
         nro      = int(resultado['nro'])
         filename = f'factura_{pv:05d}-{nro:08d}.pdf'
@@ -1253,6 +1305,127 @@ def api_enviar_factura():
         return jsonify({'error': 'Error de autenticacion SMTP. Verifica usuario y contrasena.'}), 500
     except Exception as e:
         return jsonify({'error': f'Error al enviar: {e}'}), 500
+
+
+@app.route('/api/clientes')
+@login_required
+def api_clientes():
+    user       = _get_current_user()
+    empresa_id = request.args.get('empresa_id', '').strip()
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa or not _user_can_access(user, empresa_id):
+        return jsonify({'error': 'Acceso denegado'}), 403
+    clientes = _load_clientes(empresa_id)
+    lista = sorted(clientes.values(), key=lambda x: x.get('nombre', ''))
+    return jsonify({'clientes': lista, 'total': len(lista)})
+
+
+@app.route('/api/clientes/importar', methods=['POST'])
+@admin_required
+def api_clientes_importar():
+    empresa_id = (request.form.get('empresa_id') or '').strip()
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 400
+
+    f = request.files.get('archivo')
+    if not f or not f.filename:
+        return jsonify({'error': 'No se recibió ningún archivo'}), 400
+    if not f.filename.lower().endswith(('.xlsx', '.xls')):
+        return jsonify({'error': 'El archivo debe ser .xlsx'}), 400
+
+    try:
+        df = pd.read_excel(f)
+        df.columns = [c.strip().upper() for c in df.columns]
+
+        cuit_col   = next((c for c in df.columns if 'CUIT' in c), None)
+        nombre_col = next((c for c in df.columns if 'CLIENTE' in c or 'NOMBRE' in c or 'RAZON' in c), None)
+
+        if not cuit_col or not nombre_col:
+            return jsonify({'error': f'No se encontraron columnas CUIT y CLIENTE. Columnas: {list(df.columns)}'}), 400
+
+        clientes   = _load_clientes(empresa_id)
+        importados = 0
+        actualizados = 0
+
+        for _, row in df.iterrows():
+            raw_cuit   = row.get(cuit_col)
+            raw_nombre = row.get(nombre_col)
+            if not raw_cuit or pd.isna(raw_cuit):
+                continue
+            cuit_str = str(int(float(raw_cuit))).strip()
+            if not cuit_str or cuit_str == '0':
+                continue
+            nombre = str(raw_nombre or '').strip()
+
+            if cuit_str in clientes:
+                if clientes[cuit_str].get('nombre') != nombre:
+                    clientes[cuit_str]['nombre'] = nombre
+                    actualizados += 1
+            else:
+                clientes[cuit_str] = {
+                    'cuit':      cuit_str,
+                    'nombre':    nombre,
+                    'domicilio': '',
+                    'estado':    '',
+                }
+                importados += 1
+
+        _save_clientes(empresa_id, clientes)
+        return jsonify({'ok': True, 'importados': importados,
+                        'actualizados': actualizados, 'total': len(clientes)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/clientes/sync', methods=['POST'])
+@admin_required
+def api_clientes_sync():
+    data       = request.get_json(force=True)
+    empresa_id = (data.get('empresa_id') or '').strip()
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 400
+
+    cert_path = empresa.get('cert', '')
+    key_path  = empresa.get('key', '')
+    if not os.path.isfile(cert_path) or not os.path.isfile(key_path):
+        return jsonify({'error': 'Esta empresa no tiene certificados configurados'}), 400
+
+    try:
+        import wspadron
+    except ImportError:
+        return jsonify({'error': 'Módulo wspadron no encontrado. Ejecutá actualizar.ps1.'}), 500
+
+    clientes = _load_clientes(empresa_id)
+    if not clientes:
+        return jsonify({'error': 'No hay clientes importados para esta empresa'}), 400
+
+    wsaa_url    = _empresa_urls(empresa)[0]
+    padron_wsdl = wspadron.PADRON_WSDL_HOMO if empresa.get('homologacion') else wspadron.PADRON_WSDL_PROD
+
+    try:
+        token, sign = wsaa.get_ticket('ws_sr_padron_a4', cert_path, key_path, wsaa_url, empresa['cuit'])
+    except Exception as e:
+        return jsonify({'error': f'Error obteniendo ticket AFIP: {e}'}), 500
+
+    actualizados = 0
+    errores      = []
+
+    for cuit, cliente in clientes.items():
+        try:
+            info = wspadron.consultar_persona(token, sign, empresa['cuit'], cuit, padron_wsdl)
+            if info.get('domicilio'):
+                cliente['domicilio'] = info['domicilio']
+            if info.get('estado'):
+                cliente['estado']    = info['estado']
+            actualizados += 1
+        except Exception as e:
+            errores.append(f'{cuit}: {str(e)[:60]}')
+
+    _save_clientes(empresa_id, clientes)
+    return jsonify({'ok': True, 'actualizados': actualizados,
+                    'errores': errores[:10], 'total': len(clientes)})
 
 
 @app.route('/api/enviar-todos', methods=['POST'])
@@ -1342,7 +1515,8 @@ def api_enviar_todos():
                     'cae':     _str_cae(row.get('cae', '')),
                     'vto_cae': _str_cae(row.get('vto_cae', '')),
                 }
-                pdf_buf  = factura_pdf.generar_pdf(empresa, registro, resultado)
+                cliente  = _get_cliente(empresa_id, registro.get('doc_nro', ''))
+                pdf_buf  = factura_pdf.generar_pdf(empresa, registro, resultado, cliente=cliente)
                 pv       = int(registro['punto_venta'])
                 nro      = int(resultado['nro'])
                 filename = f'factura_{pv:05d}-{nro:08d}.pdf'
