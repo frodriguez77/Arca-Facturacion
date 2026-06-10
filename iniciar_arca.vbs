@@ -16,17 +16,9 @@ localVer  = GetLocalVersion()
 remoteVer = GetRemoteVersion()
 
 If remoteVer <> "" And remoteVer <> localVer Then
-    Dim resp
-    resp = MsgBox( _
-        "Nueva versi" & Chr(243) & "n disponible: v" & remoteVer & vbCrLf & _
-        "Versi" & Chr(243) & "n instalada:   v" & localVer & vbCrLf & vbCrLf & _
-        "?" & Chr(65279) & "Actualizar ahora?", _
-        vbYesNo + vbQuestion + vbDefaultButton1, _
-        "ARCA Facturaci" & Chr(243) & "n - Actualizaci" & Chr(243) & "n")
-    If resp = vbYes Then
-        objShell.Run "powershell -ExecutionPolicy Bypass -File """ & appDir & "\actualizar.ps1"" -AutoReiniciar", 1, True
-        WScript.Quit
-    End If
+    ' Actualizar automaticamente sin preguntar
+    objShell.Run "powershell -ExecutionPolicy Bypass -File """ & appDir & "\actualizar.ps1"" -AutoReiniciar", 1, True
+    WScript.Quit
 End If
 
 ' --- Preparar arca.exe (copia de pythonw.exe en la carpeta de Python) ---
