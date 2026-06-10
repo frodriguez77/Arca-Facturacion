@@ -7,13 +7,33 @@ Set objFSO   = CreateObject("Scripting.FileSystemObject")
 Dim appDir
 appDir = objFSO.GetParentFolderName(WScript.ScriptFullName)
 
-Const URL = "http://localhost:5000"
+Const URL        = "http://localhost:5000"
+Const REMOTE_URL = "https://raw.githubusercontent.com/frodriguez77/Arca-Facturacion/claude/new-pc-download-setup-5AF1K/VERSION"
+
+' --- Control de actualizaciones (antes de iniciar el servidor) ---
+Dim localVer, remoteVer
+localVer  = GetLocalVersion()
+remoteVer = GetRemoteVersion()
+
+If remoteVer <> "" And remoteVer <> localVer Then
+    Dim resp
+    resp = MsgBox( _
+        "Nueva versi" & Chr(243) & "n disponible: v" & remoteVer & vbCrLf & _
+        "Versi" & Chr(243) & "n instalada:   v" & localVer & vbCrLf & vbCrLf & _
+        "?" & Chr(65279) & "Actualizar ahora?", _
+        vbYesNo + vbQuestion + vbDefaultButton1, _
+        "ARCA Facturaci" & Chr(243) & "n - Actualizaci" & Chr(243) & "n")
+    If resp = vbYes Then
+        objShell.Run "powershell -ExecutionPolicy Bypass -File """ & appDir & "\actualizar.ps1"" -AutoReiniciar", 1, True
+        WScript.Quit
+    End If
+End If
 
 ' --- Preparar arca.exe (copia de pythonw.exe en la carpeta de Python) ---
 Dim arcaExe
 arcaExe = PrepararArcaExe()
 
-' --- Iniciar servidor si no está corriendo ---
+' --- Iniciar servidor si no esta corriendo ---
 If Not ServidorActivo() Then
     If arcaExe <> "" Then
         objShell.Run """" & arcaExe & """ """ & appDir & "\app.py""", 0, False
@@ -39,6 +59,34 @@ End If
 
 
 ' ================================================================
+Function GetLocalVersion()
+    On Error Resume Next
+    Dim f : f = appDir & "\VERSION"
+    If Not objFSO.FileExists(f) Then
+        GetLocalVersion = "0.0.0"
+        Exit Function
+    End If
+    Dim ts : Set ts = objFSO.OpenTextFile(f, 1)
+    GetLocalVersion = Trim(ts.ReadLine())
+    ts.Close
+    On Error GoTo 0
+End Function
+
+Function GetRemoteVersion()
+    On Error Resume Next
+    Dim http
+    Set http = CreateObject("WinHttp.WinHttpRequest.5.1")
+    http.Open "GET", REMOTE_URL, False
+    http.SetTimeouts 500, 500, 4000, 4000
+    http.Send
+    If Err.Number = 0 And http.Status = 200 Then
+        GetRemoteVersion = Trim(http.ResponseText)
+    Else
+        GetRemoteVersion = ""
+    End If
+    On Error GoTo 0
+End Function
+
 Function PrepararArcaExe()
     On Error Resume Next
 

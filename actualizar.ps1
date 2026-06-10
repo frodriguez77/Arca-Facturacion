@@ -1,4 +1,8 @@
 # ARCA Facturacion - Actualizador
+param(
+    [switch]$AutoReiniciar   # pasado por iniciar_arca.vbs para reiniciar sin preguntar
+)
+
 $BASE    = $PSScriptRoot
 $REPO    = 'https://github.com/frodriguez77/Arca-Facturacion.git'
 $BRANCH  = 'claude/new-pc-download-setup-5AF1K'
@@ -58,6 +62,7 @@ $archivos = @(
     'iniciar_arca.vbs',
     'crear_acceso_directo.bat',
     'actualizar.bat',
+    'actualizar.ps1',
     'templates/admin.html',
     'templates/index.html',
     'templates/reportes.html',
@@ -77,11 +82,16 @@ Write-Host "    Actualizacion completada!  v$version" -ForegroundColor Green
 Write-Host '  ==========================================' -ForegroundColor Green
 Write-Host ''
 
-$r = Read-Host '  Reiniciar el sistema ahora? (S/N)'
-if ($r -match '^[sS]') {
-    Write-Host '  Iniciando ARCA Facturacion...'
+if ($AutoReiniciar) {
+    Write-Host '  Reiniciando ARCA Facturacion...' -ForegroundColor Cyan
+    Start-Sleep -Seconds 1
     Start-Process wscript.exe -ArgumentList "`"$BASE\iniciar_arca.vbs`""
+} else {
+    $r = Read-Host '  Reiniciar el sistema ahora? (S/N)'
+    if ($r -match '^[sS]') {
+        Write-Host '  Iniciando ARCA Facturacion...'
+        Start-Process wscript.exe -ArgumentList "`"$BASE\iniciar_arca.vbs`""
+    }
+    Write-Host ''
+    Read-Host 'Presiona Enter para cerrar'
 }
-
-Write-Host ''
-Read-Host 'Presiona Enter para cerrar'
