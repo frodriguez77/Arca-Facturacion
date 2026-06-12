@@ -564,6 +564,7 @@ def upload():
                 if hasattr(v, 'strftime'):
                     v = v.strftime('%Y-%m-%d')
                 r[c] = str(v) if v is not None else ''
+            r['forma_pago'] = str(row.get('forma_pago', '') or '').strip()
             registros.append(r)
 
         return jsonify({'ok': True, 'registros': registros, 'total': len(registros)})
@@ -1067,6 +1068,7 @@ def plantilla():
         'doc_tipo': 99, 'doc_nro': 0, 'razon_social': 'Consumidor Final',
         'fecha': datetime.today().strftime('%Y-%m-%d'),
         'imp_neto': 1000.00, 'alicuota': 0, 'imp_iva': 0.00, 'imp_total': 1000.00,
+        'forma_pago': 'Contado',
         'email': '',
     }])
     out = io.BytesIO()
@@ -1109,9 +1111,10 @@ def pdf_desde_resultado(empresa_id, fila):
             'cae':     _str_cae(row.get('cae', '')),
             'vto_cae': _str_cae(row.get('vto_cae', '')),
         }
-        cliente = _get_cliente(empresa_id, registro.get('doc_nro', ''))
+        cliente    = _get_cliente(empresa_id, registro.get('doc_nro', ''))
+        forma_pago = str(row.get('forma_pago', '') or '').strip()
 
-        pdf_buf = factura_pdf.generar_pdf(empresa, registro, resultado, cliente=cliente)
+        pdf_buf = factura_pdf.generar_pdf(empresa, registro, resultado, cliente=cliente, forma_pago=forma_pago)
         pv      = int(registro['punto_venta'])
         nro     = int(resultado['nro'])
         return send_file(pdf_buf, as_attachment=False,
@@ -1139,10 +1142,11 @@ def imprimir():
         return jsonify({'error': 'Faltan datos del comprobante'}), 400
 
     try:
-        cliente = _get_cliente(empresa_id, registro.get('doc_nro', ''))
-        pdf_buf = factura_pdf.generar_pdf(empresa, registro, resultado, cliente=cliente)
-        pv      = int(registro.get('punto_venta', 0))
-        nro     = int(resultado.get('nro', 0))
+        cliente    = _get_cliente(empresa_id, registro.get('doc_nro', ''))
+        forma_pago = str(registro.get('forma_pago', '') or '').strip()
+        pdf_buf    = factura_pdf.generar_pdf(empresa, registro, resultado, cliente=cliente, forma_pago=forma_pago)
+        pv         = int(registro.get('punto_venta', 0))
+        nro        = int(resultado.get('nro', 0))
         return send_file(pdf_buf, as_attachment=False,
                          download_name=f'factura_{pv:04d}-{nro:08d}.pdf',
                          mimetype='application/pdf')
@@ -1253,11 +1257,12 @@ def api_enviar_factura():
             'cae':     _str_cae(row.get('cae', '')),
             'vto_cae': _str_cae(row.get('vto_cae', '')),
         }
-        cliente  = _get_cliente(empresa_id, registro.get('doc_nro', ''))
-        pdf_buf  = factura_pdf.generar_pdf(empresa, registro, resultado, cliente=cliente)
-        pv       = int(registro['punto_venta'])
-        nro      = int(resultado['nro'])
-        filename = f'factura_{pv:05d}-{nro:08d}.pdf'
+        cliente    = _get_cliente(empresa_id, registro.get('doc_nro', ''))
+        forma_pago = str(row.get('forma_pago', '') or '').strip()
+        pdf_buf    = factura_pdf.generar_pdf(empresa, registro, resultado, cliente=cliente, forma_pago=forma_pago)
+        pv         = int(registro['punto_venta'])
+        nro        = int(resultado['nro'])
+        filename   = f'factura_{pv:05d}-{nro:08d}.pdf'
     except Exception as e:
         return jsonify({'error': f'Error generando PDF: {e}'}), 500
 
@@ -1515,8 +1520,9 @@ def api_enviar_todos():
                     'cae':     _str_cae(row.get('cae', '')),
                     'vto_cae': _str_cae(row.get('vto_cae', '')),
                 }
-                cliente  = _get_cliente(empresa_id, registro.get('doc_nro', ''))
-                pdf_buf  = factura_pdf.generar_pdf(empresa, registro, resultado, cliente=cliente)
+                cliente    = _get_cliente(empresa_id, registro.get('doc_nro', ''))
+                forma_pago = str(row.get('forma_pago', '') or '').strip()
+                pdf_buf    = factura_pdf.generar_pdf(empresa, registro, resultado, cliente=cliente, forma_pago=forma_pago)
                 pv       = int(registro['punto_venta'])
                 nro      = int(resultado['nro'])
                 filename = f'factura_{pv:05d}-{nro:08d}.pdf'

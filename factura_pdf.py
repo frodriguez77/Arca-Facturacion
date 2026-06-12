@@ -110,7 +110,7 @@ def _qr(cuit, pv, tipo, nro, fecha_raw, total, doc_tipo, doc_nro, cae):
     return buf
 
 # ── página ────────────────────────────────────────────────────────────────────
-def _page(c, titulo, emp, reg, res, cliente=None):
+def _page(c, titulo, emp, reg, res, cliente=None, forma_pago=''):
 
     # extraer datos
     cuit      = str(emp['cuit'])
@@ -229,9 +229,14 @@ def _page(c, titulo, emp, reg, res, cliente=None):
 
     y_rec_extra = 0
     if cliente_domicilio:
-        T(ML,      yr - 2.20*cm, 'Domicilio',                  sz=8, color=GRIS)
-        T(ML+pad,  yr - 2.20*cm, cliente_domicilio[:80],       sz=8)
+        T(ML,      yr - 2.20*cm, 'Domicilio',            sz=8, color=GRIS)
+        T(ML+pad,  yr - 2.20*cm, cliente_domicilio[:80], sz=8)
         y_rec_extra = 0.55*cm
+
+    fp = (forma_pago or '').strip() or 'Contado'
+    T(ML,     yr - 2.20*cm - y_rec_extra, 'Cond. Venta', sz=8, color=GRIS)
+    T(ML+pad, yr - 2.20*cm - y_rec_extra, fp,            sz=8)
+    y_rec_extra += 0.55*cm
 
     y_sep2 = yr - 2.20*cm - y_rec_extra
     hline(y_sep2)
@@ -314,22 +319,23 @@ def _page(c, titulo, emp, reg, res, cliente=None):
 
 
 # ── entrada pública ───────────────────────────────────────────────────────────
-def generar_pdf(empresa, registro, resultado, cliente=None):
+def generar_pdf(empresa, registro, resultado, cliente=None, forma_pago=''):
     """
     Retorna BytesIO con el PDF (ORIGINAL + DUPLICADO).
-    empresa  : dict {nombre, cuit, domicilio, telefono, localidad,
-                     ing_brutos, inicio_actividades, homologacion}
-    registro : dict {punto_venta, tipo_cbte, concepto, doc_tipo, doc_nro,
-                     razon_social, fecha, imp_neto, alicuota, imp_iva,
-                     imp_total, descripcion (opcional)}
-    resultado: dict {nro, cae, vto_cae}
-    cliente  : dict opcional {domicilio, nombre, estado} — domicilio fiscal del receptor
+    empresa    : dict {nombre, cuit, domicilio, telefono, localidad,
+                       ing_brutos, inicio_actividades, homologacion}
+    registro   : dict {punto_venta, tipo_cbte, concepto, doc_tipo, doc_nro,
+                       razon_social, fecha, imp_neto, alicuota, imp_iva,
+                       imp_total, descripcion (opcional)}
+    resultado  : dict {nro, cae, vto_cae}
+    cliente    : dict opcional {domicilio, nombre, estado}
+    forma_pago : str opcional — condición de venta (default "Contado")
     """
     buf = io.BytesIO()
     c   = rl_canvas.Canvas(buf, pagesize=A4)
-    _page(c, 'ORIGINAL',  empresa, registro, resultado, cliente)
+    _page(c, 'ORIGINAL',  empresa, registro, resultado, cliente, forma_pago)
     c.showPage()
-    _page(c, 'DUPLICADO', empresa, registro, resultado, cliente)
+    _page(c, 'DUPLICADO', empresa, registro, resultado, cliente, forma_pago)
     c.save()
     buf.seek(0)
     return buf
