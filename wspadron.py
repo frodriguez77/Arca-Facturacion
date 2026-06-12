@@ -1,8 +1,8 @@
 from wsfe import get_client
 
-PADRON_WSDL_PROD = 'https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA4?wsdl'
-PADRON_WSDL_HOMO = 'https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA4?wsdl'
-PADRON_SERVICE   = 'ws_sr_padron_a4'
+PADRON_WSDL_PROD = 'https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA5?wsdl'
+PADRON_WSDL_HOMO = 'https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA5?wsdl'
+PADRON_SERVICE   = 'ws_sr_constancia_inscripcion'
 
 
 def consultar_persona(token: str, sign: str, cuit_rep: str, cuit_consulta: str, wsdl: str) -> dict:
