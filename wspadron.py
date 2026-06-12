@@ -14,11 +14,16 @@ def consultar_persona(token: str, sign: str, cuit_rep: str, cuit_consulta: str, 
         idPersona=int(cuit_consulta),
     )
 
-    if getattr(result, 'errorConstancia', None):
-        errs = result.errorConstancia.error
-        raise Exception(errs[0].descripcion if errs else 'Error en consulta padrón')
+    # ws_sr_constancia_inscripcion devuelve los datos directamente en result.
+    # ws_sr_padron_a4 los envuelve en result.persona.
+    if hasattr(result, 'persona'):
+        if getattr(result, 'errorConstancia', None):
+            errs = result.errorConstancia.error
+            raise Exception(errs[0].descripcion if errs else 'Error en consulta padrón')
+        p = result.persona
+    else:
+        p = result
 
-    p = result.persona
     tipo = str(getattr(p, 'tipoPersona', '') or '')
 
     if tipo == 'FISICA':
@@ -28,19 +33,30 @@ def consultar_persona(token: str, sign: str, cuit_rep: str, cuit_consulta: str, 
     else:
         razon_social = str(getattr(p, 'razonSocial', '') or '').strip()
 
+    # ws_sr_constancia_inscripcion usa domicilioFiscal (objeto único).
+    # ws_sr_padron_a4 usa domicilio (lista).
     domicilio = ''
-    domicilios = list(getattr(p, 'domicilio', None) or [])
-    candidatos = [d for d in domicilios if str(getattr(d, 'tipoDomicilio', '')) == 'FISCAL']
-    if not candidatos:
-        candidatos = domicilios
-    if candidatos:
-        d     = candidatos[0]
+    dom_fiscal = getattr(p, 'domicilioFiscal', None)
+    if dom_fiscal:
         parts = [
-            str(getattr(d, 'direccion',            '') or ''),
-            str(getattr(d, 'localidad',             '') or ''),
-            str(getattr(d, 'descripcionProvincia',  '') or ''),
+            str(getattr(dom_fiscal, 'direccion',           '') or ''),
+            str(getattr(dom_fiscal, 'localidad',            '') or ''),
+            str(getattr(dom_fiscal, 'descripcionProvincia', '') or ''),
         ]
         domicilio = ', '.join(x for x in parts if x)
+    else:
+        domicilios = list(getattr(p, 'domicilio', None) or [])
+        candidatos = [d for d in domicilios if str(getattr(d, 'tipoDomicilio', '')) == 'FISCAL']
+        if not candidatos:
+            candidatos = domicilios
+        if candidatos:
+            d = candidatos[0]
+            parts = [
+                str(getattr(d, 'direccion',            '') or ''),
+                str(getattr(d, 'localidad',             '') or ''),
+                str(getattr(d, 'descripcionProvincia',  '') or ''),
+            ]
+            domicilio = ', '.join(x for x in parts if x)
 
     return {
         'cuit':         cuit_consulta,
