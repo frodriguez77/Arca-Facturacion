@@ -636,6 +636,8 @@ def procesar():
                     resultados.append({
                         'fila': idx + 2, 'nro': nro, 'resultado': 'APROBADO',
                         'cae': _str_cae(det.CAE), 'vto_cae': str(det.CAEFchVto), 'obs': '',
+                        'tipo_cbte': tipo, 'tipo_nombre': TIPO_NOMBRE.get(tipo, f'Tipo {tipo}'),
+                        'tipo_grupo': _tipo_grupo(tipo),
                     })
                 else:
                     obs = ''
@@ -644,12 +646,16 @@ def procesar():
                     resultados.append({
                         'fila': idx + 2, 'nro': nro, 'resultado': 'RECHAZADO',
                         'cae': '', 'vto_cae': '', 'obs': obs,
+                        'tipo_cbte': tipo, 'tipo_nombre': TIPO_NOMBRE.get(tipo, f'Tipo {tipo}'),
+                        'tipo_grupo': _tipo_grupo(tipo),
                     })
 
             except Exception as e:
                 resultados.append({
                     'fila': idx + 2, 'nro': 0, 'resultado': 'ERROR',
                     'cae': '', 'vto_cae': '', 'obs': str(e),
+                    'tipo_cbte': tipo, 'tipo_nombre': TIPO_NOMBRE.get(tipo, f'Tipo {tipo}'),
+                    'tipo_grupo': _tipo_grupo(tipo),
                 })
 
         _guardar_resultado(path, _resultado_path_actual(empresa_id), resultados)
