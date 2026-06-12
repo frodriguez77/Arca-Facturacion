@@ -83,8 +83,9 @@ def _cuit(c):
     return f'{c[:2]}-{c[2:10]}-{c[10]}' if len(c)==11 else c
 
 def _parse_fecha(raw):
-    for fmt in ('%Y-%m-%d','%Y%m%d','%Y-%m-%d %H:%M:%S'):
-        try: return datetime.strptime(str(raw).strip()[:len(fmt)], fmt)
+    s = str(raw).strip()
+    for fmt, ln in (('%Y-%m-%d %H:%M:%S', 19), ('%Y-%m-%d', 10), ('%Y%m%d', 8)):
+        try: return datetime.strptime(s[:ln], fmt)
         except: pass
     return None
 
