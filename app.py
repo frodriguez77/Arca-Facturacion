@@ -684,18 +684,27 @@ def _guardar_resultado(src_path: str, dest_path: str, resultados: list):
 
     wb_src = load_workbook(src_path)
     ws_src = wb_src.active
-    n_src_cols = ws_src.max_column
+    n_src_cols  = ws_src.max_column
+    src_headers = [ws_src.cell(1, c).value for c in range(1, n_src_cols + 1)]
 
     # Cargar destino existente o crear uno nuevo con encabezados
     if os.path.exists(dest_path):
         wb_dest = load_workbook(dest_path)
         ws_dest = wb_dest.active
+        n_dest_cols  = ws_dest.max_column
+        dest_headers = [ws_dest.cell(1, c).value for c in range(1, n_dest_cols + 1)]
     else:
         wb_dest = Workbook()
         ws_dest = wb_dest.active
-        src_headers = [ws_src.cell(1, c).value for c in range(1, n_src_cols + 1)]
-        for i, h in enumerate(src_headers + RES_HEADERS, 1):
+        dest_headers = src_headers + RES_HEADERS
+        for i, h in enumerate(dest_headers, 1):
             ws_dest.cell(1, i, h)
+
+    # Mapa nombre_de_columna → índice en destino (case-insensitive)
+    dest_col_map = {
+        str(h).lower().strip(): i + 1
+        for i, h in enumerate(dest_headers) if h is not None
+    }
 
     result_map = {r['fila']: r for r in resultados}
 
@@ -704,12 +713,26 @@ def _guardar_resultado(src_path: str, dest_path: str, resultados: list):
         res  = r.get('resultado', '')
         fill = verde if res == 'APROBADO' else (rojo if res == 'RECHAZADO' else amarillo)
 
-        src_vals = [ws_src.cell(row_idx, c).value for c in range(1, n_src_cols + 1)]
-        res_vals = [r.get('nro', ''), res, _str_cae(r.get('cae', '')), _str_cae(r.get('vto_cae', '')), r.get('obs', '')]
-
         new_row = ws_dest.max_row + 1
-        for col_idx, val in enumerate(src_vals + res_vals, 1):
-            ws_dest.cell(new_row, col_idx, val).fill = fill
+
+        # Escribir valores fuente mapeando por nombre de columna
+        for ci, header in enumerate(src_headers, 1):
+            val    = ws_src.cell(row_idx, ci).value
+            h_key  = str(header).lower().strip() if header is not None else ''
+            dest_c = dest_col_map.get(h_key, ci)
+            ws_dest.cell(new_row, dest_c, val).fill = fill
+
+        # Escribir columnas de resultado por nombre
+        for val, hdr in [
+            (r.get('nro', ''),                  'nro_cbte'),
+            (res,                                'resultado'),
+            (_str_cae(r.get('cae', '')),         'cae'),
+            (_str_cae(r.get('vto_cae', '')),     'vto_cae'),
+            (r.get('obs', ''),                   'observaciones'),
+        ]:
+            dest_c = dest_col_map.get(hdr)
+            if dest_c:
+                ws_dest.cell(new_row, dest_c, val).fill = fill
 
     wb_dest.save(dest_path)
 
