@@ -6,6 +6,7 @@
   <title>ARCA - Clientes</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     body { background:#f1f5f9; }
     .header { background: linear-gradient(135deg,#1d4ed8,#0d9488); color:#fff; }
@@ -20,8 +21,30 @@
     .toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; }
     #tbody-clientes tr { cursor: pointer; }
     #tbody-clientes tr:hover { background: #e8f0fe; }
-    .ficha-header { background: linear-gradient(135deg,#f0f4ff,#e8f5e9); border-radius: 12px; padding: 1.5rem; }
     .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .ficha-header-card {
+      background: linear-gradient(135deg, #1e3a5f, #1d4ed8);
+      color: #fff; border-radius: 12px; padding: 1.5rem;
+    }
+    .ficha-header-card .ficha-subtitle { opacity: 0.8; }
+    .ficha-card {
+      border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.2rem;
+      background: #fff; height: 100%;
+    }
+    .ficha-card-title {
+      font-size: .8rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .5px; margin-bottom: .75rem; color: #64748b;
+    }
+    .ficha-card-icon {
+      width: 40px; height: 40px; border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+    }
+    .ficha-stat { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
+    .ficha-stat-label { font-size: .75rem; color: #94a3b8; }
+    .ficha-dato { margin-bottom: .4rem; font-size: .85rem; }
+    .ficha-dato .label { color: #64748b; min-width: 110px; display: inline-block; }
+    .chart-mini { max-height: 120px; }
   </style>
 </head>
 <body>
@@ -165,34 +188,116 @@
           <i class="bi bi-arrow-left"></i> Volver al listado
         </button>
 
-        <div class="ficha-header mb-4">
-          <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
-            <div>
-              <h5 class="mb-1" id="ficha-nombre"></h5>
-              <div class="text-muted">
-                <span class="me-3"><i class="bi bi-upc-scan"></i> CUIT: <code id="ficha-cuit"></code></span>
-                <span id="ficha-estado-badge"></span>
+        <!-- HEADER: nombre + gráfico -->
+        <div class="ficha-header-card mb-4">
+          <div class="row align-items-center">
+            <div class="col-md-7">
+              <div class="d-flex align-items-center gap-3 mb-2">
+                <div class="ficha-card-icon bg-white text-primary">
+                  <i class="bi bi-person-fill"></i>
+                </div>
+                <div>
+                  <h4 class="mb-0" id="ficha-nombre"></h4>
+                  <div class="ficha-subtitle">
+                    CUIT: <code class="text-white" id="ficha-cuit"></code>
+                    <span class="ms-2" id="ficha-estado-badge"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="ficha-subtitle small mt-1">
+                <span id="ficha-iva-tag" class="badge bg-light text-dark me-2"></span>
+                <span id="ficha-domicilio-tag"></span>
+              </div>
+            </div>
+            <div class="col-md-5">
+              <div class="chart-mini">
+                <canvas id="ficha-chart"></canvas>
               </div>
             </div>
           </div>
-          <div class="mt-2 small text-muted">
-            <div id="ficha-domicilio-row"><i class="bi bi-geo-alt"></i> <span id="ficha-domicilio"></span></div>
-            <div id="ficha-iva-row"><i class="bi bi-receipt"></i> <span id="ficha-iva"></span></div>
-          </div>
         </div>
 
+        <!-- CARDS: datos + resumen ventas + resumen compras -->
+        <div class="row g-3 mb-4">
+
+          <!-- Card: Inscripción ARCA -->
+          <div class="col-md-4">
+            <div class="ficha-card">
+              <div class="ficha-card-title">
+                <i class="bi bi-shield-check text-primary"></i> Inscripción ARCA
+              </div>
+              <div class="ficha-dato"><span class="label">CUIT:</span> <strong id="ficha-d-cuit"></strong></div>
+              <div class="ficha-dato"><span class="label">Cond. IVA:</span> <span id="ficha-d-iva"></span></div>
+              <div class="ficha-dato"><span class="label">Estado:</span> <span id="ficha-d-estado"></span></div>
+              <div class="ficha-dato"><span class="label">Domicilio:</span> <span id="ficha-d-domicilio"></span></div>
+            </div>
+          </div>
+
+          <!-- Card: Resumen Ventas -->
+          <div class="col-md-4">
+            <div class="ficha-card">
+              <div class="ficha-card-title">
+                <i class="bi bi-arrow-up-right text-success"></i> Resumen Ventas
+              </div>
+              <div id="ficha-resumen-ventas-loading" class="text-muted small">
+                <span class="spinner-border spinner-border-sm"></span> Cargando...
+              </div>
+              <div id="ficha-resumen-ventas" class="d-none">
+                <div class="d-flex gap-3 mb-2">
+                  <div>
+                    <div class="ficha-stat text-success" id="ficha-rv-total">$0</div>
+                    <div class="ficha-stat-label">Total facturado</div>
+                  </div>
+                  <div>
+                    <div class="ficha-stat" id="ficha-rv-cant">0</div>
+                    <div class="ficha-stat-label">Comprobantes</div>
+                  </div>
+                </div>
+                <div class="ficha-dato"><span class="label">Último cbte:</span> <span id="ficha-rv-ultimo"></span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card: Resumen Compras -->
+          <div class="col-md-4">
+            <div class="ficha-card">
+              <div class="ficha-card-title">
+                <i class="bi bi-arrow-down-left text-danger"></i> Resumen Compras
+              </div>
+              <div id="ficha-resumen-compras-loading" class="text-muted small">
+                <span class="spinner-border spinner-border-sm"></span> Cargando...
+              </div>
+              <div id="ficha-resumen-compras" class="d-none">
+                <div class="d-flex gap-3 mb-2">
+                  <div>
+                    <div class="ficha-stat text-danger" id="ficha-rc-total">$0</div>
+                    <div class="ficha-stat-label">Total comprado</div>
+                  </div>
+                  <div>
+                    <div class="ficha-stat" id="ficha-rc-cant">0</div>
+                    <div class="ficha-stat-label">Comprobantes</div>
+                  </div>
+                </div>
+                <div class="ficha-dato"><span class="label">Último cbte:</span> <span id="ficha-rc-ultimo"></span></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- DETALLE: ventas y compras -->
         <ul class="nav nav-tabs mb-0" role="tablist">
           <li class="nav-item" role="presentation">
             <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ficha-tab-ventas"
                     type="button" role="tab">
-              <i class="bi bi-arrow-up-right text-success"></i> Ventas
+              <i class="bi bi-arrow-up-right text-success"></i> Detalle Ventas
               <span class="badge text-bg-secondary ms-1" id="ficha-ventas-count">0</span>
             </button>
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#ficha-tab-compras"
                     type="button" role="tab">
-              <i class="bi bi-arrow-down-left text-danger"></i> Compras
+              <i class="bi bi-arrow-down-left text-danger"></i> Detalle Compras
               <span class="badge text-bg-secondary ms-1" id="ficha-compras-count">0</span>
             </button>
           </li>
@@ -495,19 +600,19 @@ document.getElementById('cli-buscar').addEventListener('input', function() {
 });
 
 // ===== FICHA =================================================================
+let _fichaChart = null;
+
+function _fmtCuit(c) {
+  c = String(c);
+  return c.length === 11 ? c.substr(0,2)+'-'+c.substr(2,8)+'-'+c.substr(10) : c;
+}
+
 function abrirFicha(cuit) {
   const c = _clientesData.find(x => x.cuit === cuit);
   if (!c) return;
 
   document.getElementById('ficha-nombre').textContent = c.nombre || cuit;
-  document.getElementById('ficha-cuit').textContent = cuit;
-
-  const domRow = document.getElementById('ficha-domicilio-row');
-  const ivaRow = document.getElementById('ficha-iva-row');
-  document.getElementById('ficha-domicilio').textContent = c.domicilio || 'Sin sincronizar';
-  document.getElementById('ficha-iva').textContent = c.condicion_iva || 'Sin sincronizar';
-  domRow.classList.toggle('text-muted', !c.domicilio);
-  ivaRow.classList.toggle('text-muted', !c.condicion_iva);
+  document.getElementById('ficha-cuit').textContent = _fmtCuit(cuit);
 
   const estadoBadge = document.getElementById('ficha-estado-badge');
   if (c.estado) {
@@ -516,6 +621,23 @@ function abrirFicha(cuit) {
     estadoBadge.innerHTML = '';
   }
 
+  document.getElementById('ficha-iva-tag').textContent = c.condicion_iva || 'Sin sincronizar';
+  document.getElementById('ficha-domicilio-tag').textContent = c.domicilio ? c.domicilio : '';
+
+  document.getElementById('ficha-d-cuit').textContent = _fmtCuit(cuit);
+  document.getElementById('ficha-d-iva').textContent = c.condicion_iva || 'Sin sincronizar';
+  document.getElementById('ficha-d-estado').innerHTML = c.estado
+    ? `<span class="badge ${c.estado === 'ACTIVO' ? 'bg-success' : 'bg-warning text-dark'}">${escHtml(c.estado)}</span>`
+    : '<span class="text-muted">—</span>';
+  document.getElementById('ficha-d-domicilio').textContent = c.domicilio || 'Sin sincronizar';
+
+  document.getElementById('ficha-resumen-ventas-loading').classList.remove('d-none');
+  document.getElementById('ficha-resumen-ventas').classList.add('d-none');
+  document.getElementById('ficha-resumen-compras-loading').classList.remove('d-none');
+  document.getElementById('ficha-resumen-compras').classList.add('d-none');
+
+  if (_fichaChart) { _fichaChart.destroy(); _fichaChart = null; }
+
   document.getElementById('cli-listado').classList.add('d-none');
   document.getElementById('cli-ficha').classList.remove('d-none');
 
@@ -523,10 +645,71 @@ function abrirFicha(cuit) {
   cargarFichaCompras(cuit);
 }
 
+function _buildChart(ventas, compras) {
+  const meses = {};
+  (ventas || []).forEach(v => {
+    const m = (v.fecha || '').substring(0, 7);
+    if (m) meses[m] = (meses[m] || {v:0,c:0});
+    if (m) meses[m].v += v.imp_total;
+  });
+  (compras || []).forEach(c => {
+    const m = (c.fecha || '').substring(0, 7);
+    if (m) meses[m] = (meses[m] || {v:0,c:0});
+    if (m) meses[m].c += c.imp_total;
+  });
+
+  const labels = Object.keys(meses).sort().slice(-12);
+  if (!labels.length) return;
+
+  const dataV = labels.map(m => meses[m]?.v || 0);
+  const dataC = labels.map(m => meses[m]?.c || 0);
+  const labelsShort = labels.map(m => {
+    const [y, mo] = m.split('-');
+    const mn = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    return mn[parseInt(mo)-1] + ' ' + y.substring(2);
+  });
+
+  const ctx = document.getElementById('ficha-chart').getContext('2d');
+  if (_fichaChart) _fichaChart.destroy();
+  _fichaChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labelsShort,
+      datasets: [
+        {
+          label: 'Ventas',
+          data: dataV,
+          borderColor: '#22c55e',
+          backgroundColor: 'rgba(34,197,94,0.1)',
+          fill: true, tension: 0.3, pointRadius: 2, borderWidth: 2,
+        },
+        {
+          label: 'Compras',
+          data: dataC,
+          borderColor: '#ef4444',
+          backgroundColor: 'rgba(239,68,68,0.1)',
+          fill: true, tension: 0.3, pointRadius: 2, borderWidth: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } },
+      scales: {
+        x: { display: true, ticks: { font: { size: 9 }, color: 'rgba(255,255,255,0.6)' }, grid: { display: false } },
+        y: { display: false },
+      },
+    },
+  });
+}
+
 function cerrarFicha() {
   document.getElementById('cli-ficha').classList.add('d-none');
   document.getElementById('cli-listado').classList.remove('d-none');
 }
+
+let _fichaVentasData = [];
+let _fichaComprasData = [];
 
 async function cargarFichaVentas(cuit) {
   const empresaId = document.getElementById('cli-empresa').value;
@@ -544,15 +727,25 @@ async function cargarFichaVentas(cuit) {
   try {
     const resp = await fetch(`/api/clientes/ventas?empresa_id=${empresaId}&cuit=${cuit}`);
     const data = await resp.json();
+    _fichaVentasData = data.ventas || [];
     badge.textContent = data.total || 0;
 
-    if (!data.ventas || !data.ventas.length) {
+    const rvLoading = document.getElementById('ficha-resumen-ventas-loading');
+    const rvDiv     = document.getElementById('ficha-resumen-ventas');
+
+    if (!_fichaVentasData.length) {
       empty.classList.remove('d-none');
+      rvLoading.classList.add('d-none');
+      rvDiv.classList.remove('d-none');
+      document.getElementById('ficha-rv-total').textContent = '$ 0';
+      document.getElementById('ficha-rv-cant').textContent = '0';
+      document.getElementById('ficha-rv-ultimo').textContent = '—';
+      _buildChart(_fichaVentasData, _fichaComprasData);
       return;
     }
 
     let sumTotal = 0;
-    body.innerHTML = data.ventas.map(v => {
+    body.innerHTML = _fichaVentasData.map(v => {
       sumTotal += v.imp_total;
       const nro = String(v.punto_venta).padStart(5,'0') + '-' + String(v.nro_cbte).padStart(8,'0');
       return `<tr>
@@ -567,6 +760,17 @@ async function cargarFichaVentas(cuit) {
     }).join('');
     totalRow.innerHTML = `Total ventas: <span class="text-success">$ ${fmtMoney(sumTotal)}</span>`;
     tabla.classList.remove('d-none');
+
+    rvLoading.classList.add('d-none');
+    rvDiv.classList.remove('d-none');
+    document.getElementById('ficha-rv-total').textContent = '$ ' + fmtMoney(sumTotal);
+    document.getElementById('ficha-rv-cant').textContent = _fichaVentasData.length;
+    const ultimaVenta = _fichaVentasData[0];
+    document.getElementById('ficha-rv-ultimo').textContent = ultimaVenta
+      ? fmtFecha(ultimaVenta.fecha) + ' — ' + (ultimaVenta.tipo_nombre || '')
+      : '—';
+
+    _buildChart(_fichaVentasData, _fichaComprasData);
   } catch (err) {
     empty.textContent = 'Error cargando ventas: ' + err;
     empty.classList.remove('d-none');
@@ -591,15 +795,25 @@ async function cargarFichaCompras(cuit) {
   try {
     const resp = await fetch(`/api/clientes/compras?empresa_id=${empresaId}&cuit=${cuit}`);
     const data = await resp.json();
+    _fichaComprasData = data.compras || [];
     badge.textContent = data.total || 0;
 
-    if (!data.compras || !data.compras.length) {
+    const rcLoading = document.getElementById('ficha-resumen-compras-loading');
+    const rcDiv     = document.getElementById('ficha-resumen-compras');
+
+    if (!_fichaComprasData.length) {
       empty.classList.remove('d-none');
+      rcLoading.classList.add('d-none');
+      rcDiv.classList.remove('d-none');
+      document.getElementById('ficha-rc-total').textContent = '$ 0';
+      document.getElementById('ficha-rc-cant').textContent = '0';
+      document.getElementById('ficha-rc-ultimo').textContent = '—';
+      _buildChart(_fichaVentasData, _fichaComprasData);
       return;
     }
 
     let sumTotal = 0;
-    body.innerHTML = data.compras.map(c => {
+    body.innerHTML = _fichaComprasData.map(c => {
       sumTotal += c.imp_total;
       const nro = String(c.punto_venta || 0).padStart(5,'0') + '-' + String(c.nro_desde || 0).padStart(8,'0');
       return `<tr>
@@ -614,6 +828,17 @@ async function cargarFichaCompras(cuit) {
     }).join('');
     totalRow.innerHTML = `Total compras: <span class="text-danger">$ ${fmtMoney(sumTotal)}</span>`;
     tabla.classList.remove('d-none');
+
+    rcLoading.classList.add('d-none');
+    rcDiv.classList.remove('d-none');
+    document.getElementById('ficha-rc-total').textContent = '$ ' + fmtMoney(sumTotal);
+    document.getElementById('ficha-rc-cant').textContent = _fichaComprasData.length;
+    const ultimaCompra = _fichaComprasData[0];
+    document.getElementById('ficha-rc-ultimo').textContent = ultimaCompra
+      ? fmtFecha(ultimaCompra.fecha) + ' — ' + (ultimaCompra.tipo || '')
+      : '—';
+
+    _buildChart(_fichaVentasData, _fichaComprasData);
   } catch (err) {
     empty.textContent = 'Error cargando compras: ' + err;
     empty.classList.remove('d-none');
