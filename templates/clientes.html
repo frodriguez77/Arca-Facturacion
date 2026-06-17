@@ -19,8 +19,8 @@
     .nav-tabs { border-bottom: none; }
     .nav-tabs .nav-link { border-radius: 10px 10px 0 0; }
     .toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; }
-    #tbody-clientes tr { cursor: pointer; }
-    #tbody-clientes tr:hover { background: #e8f0fe; }
+    #cli-iva-content tr[data-cuit] { cursor: pointer; transition: background .15s; }
+    #cli-iva-content tr[data-cuit]:hover { background: #e8f0fe; }
     .num { text-align: right; font-variant-numeric: tabular-nums; }
     .ficha-header-card {
       background: linear-gradient(135deg, #1e3a5f, #1d4ed8);
@@ -146,6 +146,8 @@
           <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
             <h6 class="mb-0">Clientes registrados: <span id="cli-total">0</span></h6>
             <div class="d-flex align-items-center gap-2">
+              <span class="text-muted small"><i class="bi bi-hand-index"></i> Hacé clic en un cliente para ver su ficha completa</span>
+              <span class="vr opacity-25"></span>
               <i class="bi bi-search text-muted"></i>
               <input type="text" class="form-control form-control-sm" id="cli-buscar"
                      placeholder="Buscar por nombre o CUIT..." style="width:260px">
