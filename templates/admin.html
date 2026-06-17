@@ -989,19 +989,31 @@
           <h6 class="mb-0">Clientes registrados: <span id="cli-total">0</span></h6>
           <small class="text-muted">Los clientes con domicilio aparecerán en los PDF de facturas</small>
         </div>
-        <div class="table-responsive" style="max-height:420px; overflow-y:auto">
-          <table class="table table-sm align-middle table-hover mb-0">
-            <thead class="table-dark sticky-top">
-              <tr>
-                <th>CUIT</th>
-                <th>Nombre</th>
-                <th>Domicilio fiscal</th>
-                <th>Cond. IVA</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-clientes"></tbody>
-          </table>
+
+        <ul class="nav nav-tabs mb-0" id="cli-iva-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="cli-tab-todos" data-bs-toggle="tab"
+                    data-bs-target="#cli-pane-todos" type="button" role="tab">Todos</button>
+          </li>
+        </ul>
+
+        <div class="tab-content" id="cli-iva-content">
+          <div class="tab-pane fade show active" id="cli-pane-todos" role="tabpanel">
+            <div class="table-responsive" style="max-height:420px; overflow-y:auto">
+              <table class="table table-sm align-middle table-hover mb-0">
+                <thead class="table-dark sticky-top">
+                  <tr>
+                    <th>CUIT</th>
+                    <th>Nombre</th>
+                    <th>Domicilio fiscal</th>
+                    <th>Cond. IVA</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-clientes"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1609,28 +1621,86 @@ fetch('/api/check-update')
 
 // ===== CLIENTES ==============================================================
 
+function _renderClienteRows(lista) {
+  if (!lista.length) return '<tr><td colspan="5" class="text-muted text-center py-3">Sin clientes en esta categoría.</td></tr>';
+  return lista.map(c => `
+    <tr>
+      <td><code>${c.cuit}</code></td>
+      <td>${escHtml(c.nombre)}</td>
+      <td class="${c.domicilio ? '' : 'text-muted fst-italic'}">${c.domicilio ? escHtml(c.domicilio) : 'Sin sincronizar'}</td>
+      <td class="${c.condicion_iva ? '' : 'text-muted fst-italic'}">${c.condicion_iva ? escHtml(c.condicion_iva) : 'Sin sincronizar'}</td>
+      <td>${c.estado ? `<span class="badge ${c.estado === 'ACTIVO' ? 'bg-success' : 'bg-warning text-dark'}">${c.estado}</span>` : ''}</td>
+    </tr>`).join('');
+}
+
+function _tablaHtml(bodyId) {
+  return `<div class="table-responsive" style="max-height:420px; overflow-y:auto">
+    <table class="table table-sm align-middle table-hover mb-0">
+      <thead class="table-dark sticky-top">
+        <tr><th>CUIT</th><th>Nombre</th><th>Domicilio fiscal</th><th>Cond. IVA</th><th>Estado</th></tr>
+      </thead>
+      <tbody id="${bodyId}"></tbody>
+    </table></div>`;
+}
+
 async function cargarClientes() {
   const empresaId = document.getElementById('cli-empresa').value;
   const wrapper   = document.getElementById('cli-tabla-wrapper');
   const tbody     = document.getElementById('tbody-clientes');
+  const tabs      = document.getElementById('cli-iva-tabs');
+  const content   = document.getElementById('cli-iva-content');
   if (!empresaId) { wrapper.classList.add('d-none'); return; }
   try {
     const resp = await fetch(`/api/clientes?empresa_id=${empresaId}`);
     const data = await resp.json();
     if (data.error) { mostrarNotif(data.error, 'danger'); return; }
     document.getElementById('cli-total').textContent = data.total;
-    if (data.total === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-muted text-center py-3">No hay clientes importados todavía.</td></tr>';
-    } else {
-      tbody.innerHTML = data.clientes.map(c => `
-        <tr>
-          <td><code>${c.cuit}</code></td>
-          <td>${escHtml(c.nombre)}</td>
-          <td class="${c.domicilio ? '' : 'text-muted fst-italic'}">${c.domicilio ? escHtml(c.domicilio) : 'Sin sincronizar'}</td>
-          <td class="${c.condicion_iva ? '' : 'text-muted fst-italic'}">${c.condicion_iva ? escHtml(c.condicion_iva) : 'Sin sincronizar'}</td>
-          <td>${c.estado ? `<span class="badge ${c.estado === 'ACTIVO' ? 'bg-success' : 'bg-warning text-dark'}">${c.estado}</span>` : ''}</td>
-        </tr>`).join('');
-    }
+
+    // Pestaña "Todos"
+    tbody.innerHTML = _renderClienteRows(data.clientes);
+
+    // Agrupar por condición IVA
+    const grupos = {};
+    data.clientes.forEach(c => {
+      const key = c.condicion_iva || 'Sin definir';
+      if (!grupos[key]) grupos[key] = [];
+      grupos[key].push(c);
+    });
+
+    // Limpiar pestañas anteriores (excepto "Todos")
+    tabs.querySelectorAll('.nav-item:not(:first-child)').forEach(el => el.remove());
+    content.querySelectorAll('.tab-pane:not(:first-child)').forEach(el => el.remove());
+
+    // Crear una pestaña por cada condición IVA
+    const colores = {
+      'Responsable Monotributo': 'text-bg-info',
+      'IVA Responsable Inscripto': 'text-bg-primary',
+      'IVA Sujeto Exento': 'text-bg-warning',
+      'Consumidor Final': 'text-bg-secondary',
+    };
+    Object.keys(grupos).sort().forEach((cond, i) => {
+      const id   = 'cli-iva-' + i;
+      const cnt  = grupos[cond].length;
+      const badge = colores[cond] || 'text-bg-secondary';
+
+      const li = document.createElement('li');
+      li.className = 'nav-item';
+      li.setAttribute('role', 'presentation');
+      li.innerHTML = `<button class="nav-link" data-bs-toggle="tab" data-bs-target="#${id}"
+        type="button" role="tab">${escHtml(cond)} <span class="badge ${badge} ms-1">${cnt}</span></button>`;
+      tabs.appendChild(li);
+
+      const pane = document.createElement('div');
+      pane.className = 'tab-pane fade';
+      pane.id = id;
+      pane.setAttribute('role', 'tabpanel');
+      pane.innerHTML = _tablaHtml(id + '-body');
+      content.appendChild(pane);
+      document.getElementById(id + '-body').innerHTML = _renderClienteRows(grupos[cond]);
+    });
+
+    // Actualizar badge en pestaña "Todos"
+    document.getElementById('cli-tab-todos').innerHTML = `Todos <span class="badge text-bg-dark ms-1">${data.total}</span>`;
     wrapper.classList.remove('d-none');
   } catch (err) {
     mostrarNotif('Error cargando clientes: ' + err, 'danger');
