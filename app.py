@@ -31,6 +31,7 @@ UPLOAD       = os.path.join(BASE, 'uploads')
 CERTS        = os.path.join(BASE, 'certificados')
 CLIENTES_DIR = os.path.join(BASE, 'clientes')
 COMPRAS_DIR  = os.path.join(BASE, 'compras')
+FOTOS_CLI    = os.path.join(BASE, 'static', 'clientes')
 
 _version_path = os.path.join(BASE, 'VERSION')
 APP_VERSION   = open(_version_path).read().strip() if os.path.exists(_version_path) else '—'
@@ -80,6 +81,7 @@ os.makedirs(UPLOAD,       exist_ok=True)
 os.makedirs(CERTS,        exist_ok=True)
 os.makedirs(CLIENTES_DIR, exist_ok=True)
 os.makedirs(COMPRAS_DIR,  exist_ok=True)
+os.makedirs(FOTOS_CLI,    exist_ok=True)
 
 
 def _str_cae(v) -> str:
@@ -1515,6 +1517,45 @@ def api_clientes_compras():
         compras = [c for c in compras if c.get('cuit_emisor') == cuit]
     compras.sort(key=lambda c: c.get('fecha', ''), reverse=True)
     return jsonify({'compras': compras, 'total': len(compras)})
+
+
+@app.route('/api/clientes/foto', methods=['POST'])
+@login_required
+def api_clientes_foto_upload():
+    user       = _get_current_user()
+    empresa_id = (request.form.get('empresa_id') or '').strip()
+    cuit       = (request.form.get('cuit') or '').strip()
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa or not _user_can_access(user, empresa_id):
+        return jsonify({'error': 'Acceso denegado'}), 403
+    if not cuit:
+        return jsonify({'error': 'CUIT requerido'}), 400
+
+    f = request.files.get('foto')
+    if not f or not f.filename:
+        return jsonify({'error': 'No se recibió ningún archivo'}), 400
+
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext not in ('.jpg', '.jpeg', '.png', '.webp'):
+        return jsonify({'error': 'Solo se permiten imágenes JPG, PNG o WEBP'}), 400
+
+    carpeta = os.path.join(FOTOS_CLI, empresa_id)
+    os.makedirs(carpeta, exist_ok=True)
+    dest = os.path.join(carpeta, f'{cuit}{ext}')
+
+    for old_ext in ('.jpg', '.jpeg', '.png', '.webp'):
+        old = os.path.join(carpeta, f'{cuit}{old_ext}')
+        if os.path.exists(old):
+            os.remove(old)
+
+    f.save(dest)
+
+    clientes = _load_clientes(empresa_id)
+    if cuit in clientes:
+        clientes[cuit]['foto'] = f'/static/clientes/{empresa_id}/{cuit}{ext}'
+        _save_clientes(empresa_id, clientes)
+
+    return jsonify({'ok': True, 'foto_url': f'/static/clientes/{empresa_id}/{cuit}{ext}'})
 
 
 @app.route('/api/clientes/importar-compras', methods=['POST'])

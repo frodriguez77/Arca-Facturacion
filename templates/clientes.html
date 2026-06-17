@@ -45,6 +45,22 @@
     .ficha-dato { margin-bottom: .4rem; font-size: .85rem; }
     .ficha-dato .label { color: #64748b; min-width: 110px; display: inline-block; }
     .chart-mini { max-height: 120px; }
+    .ficha-foto-wrapper {
+      position: relative; width: 64px; height: 64px; border-radius: 50%;
+      overflow: hidden; cursor: pointer; flex-shrink: 0;
+      background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.4);
+    }
+    .ficha-foto { width: 100%; height: 100%; object-fit: cover; }
+    .ficha-foto-ph {
+      width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+      color: rgba(255,255,255,0.6); font-size: 1.5rem;
+    }
+    .ficha-foto-overlay {
+      position: absolute; inset: 0; background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 1.1rem; opacity: 0; transition: opacity .2s;
+    }
+    .ficha-foto-wrapper:hover .ficha-foto-overlay { opacity: 1; }
   </style>
 </head>
 <body>
@@ -191,12 +207,18 @@
         </button>
 
         <!-- HEADER: nombre + gráfico -->
+        <input type="file" id="ficha-foto-input" accept=".jpg,.jpeg,.png,.webp" class="d-none">
+
         <div class="ficha-header-card mb-4">
           <div class="row align-items-center">
             <div class="col-md-7">
               <div class="d-flex align-items-center gap-3 mb-2">
-                <div class="ficha-card-icon bg-white text-primary">
-                  <i class="bi bi-person-fill"></i>
+                <div class="ficha-foto-wrapper" onclick="document.getElementById('ficha-foto-input').click()" title="Subir foto del cliente">
+                  <img id="ficha-foto-img" src="" class="ficha-foto d-none" alt="">
+                  <div id="ficha-foto-placeholder" class="ficha-foto-ph">
+                    <i class="bi bi-camera"></i>
+                  </div>
+                  <div class="ficha-foto-overlay"><i class="bi bi-camera"></i></div>
                 </div>
                 <div>
                   <h4 class="mb-0" id="ficha-nombre"></h4>
@@ -603,6 +625,7 @@ document.getElementById('cli-buscar').addEventListener('input', function() {
 
 // ===== FICHA =================================================================
 let _fichaChart = null;
+let _fichaCuitActual = '';
 
 function _fmtCuit(c) {
   c = String(c);
@@ -637,6 +660,19 @@ function abrirFicha(cuit) {
   document.getElementById('ficha-resumen-ventas').classList.add('d-none');
   document.getElementById('ficha-resumen-compras-loading').classList.remove('d-none');
   document.getElementById('ficha-resumen-compras').classList.add('d-none');
+
+  const fotoImg = document.getElementById('ficha-foto-img');
+  const fotoPh  = document.getElementById('ficha-foto-placeholder');
+  if (c.foto) {
+    fotoImg.src = c.foto + '?t=' + Date.now();
+    fotoImg.classList.remove('d-none');
+    fotoPh.classList.add('d-none');
+  } else {
+    fotoImg.classList.add('d-none');
+    fotoPh.classList.remove('d-none');
+  }
+  document.getElementById('ficha-foto-input').value = '';
+  _fichaCuitActual = cuit;
 
   if (_fichaChart) { _fichaChart.destroy(); _fichaChart = null; }
 
@@ -709,6 +745,37 @@ function cerrarFicha() {
   document.getElementById('cli-ficha').classList.add('d-none');
   document.getElementById('cli-listado').classList.remove('d-none');
 }
+
+document.getElementById('ficha-foto-input').addEventListener('change', async function() {
+  const file = this.files[0];
+  if (!file || !_fichaCuitActual) return;
+  const empresaId = document.getElementById('cli-empresa').value;
+
+  const fd = new FormData();
+  fd.append('empresa_id', empresaId);
+  fd.append('cuit', _fichaCuitActual);
+  fd.append('foto', file);
+
+  try {
+    const resp = await fetch('/api/clientes/foto', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (data.error) { mostrarNotif(data.error, 'danger'); return; }
+
+    const fotoImg = document.getElementById('ficha-foto-img');
+    const fotoPh  = document.getElementById('ficha-foto-placeholder');
+    fotoImg.src = data.foto_url + '?t=' + Date.now();
+    fotoImg.classList.remove('d-none');
+    fotoPh.classList.add('d-none');
+
+    const c = _clientesData.find(x => x.cuit === _fichaCuitActual);
+    if (c) c.foto = data.foto_url;
+
+    mostrarNotif('Foto actualizada', 'success');
+  } catch (err) {
+    mostrarNotif('Error subiendo foto: ' + err, 'danger');
+  }
+  this.value = '';
+});
 
 let _fichaVentasData = [];
 let _fichaComprasData = [];
