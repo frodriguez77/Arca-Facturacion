@@ -996,6 +996,7 @@
                 <th>CUIT</th>
                 <th>Nombre</th>
                 <th>Domicilio fiscal</th>
+                <th>Cond. IVA</th>
                 <th>Estado</th>
               </tr>
             </thead>
@@ -1619,13 +1620,14 @@ async function cargarClientes() {
     if (data.error) { mostrarNotif(data.error, 'danger'); return; }
     document.getElementById('cli-total').textContent = data.total;
     if (data.total === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" class="text-muted text-center py-3">No hay clientes importados todavía.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="text-muted text-center py-3">No hay clientes importados todavía.</td></tr>';
     } else {
       tbody.innerHTML = data.clientes.map(c => `
         <tr>
           <td><code>${c.cuit}</code></td>
           <td>${escHtml(c.nombre)}</td>
           <td class="${c.domicilio ? '' : 'text-muted fst-italic'}">${c.domicilio ? escHtml(c.domicilio) : 'Sin sincronizar'}</td>
+          <td class="${c.condicion_iva ? '' : 'text-muted fst-italic'}">${c.condicion_iva ? escHtml(c.condicion_iva) : 'Sin sincronizar'}</td>
           <td>${c.estado ? `<span class="badge ${c.estado === 'ACTIVO' ? 'bg-success' : 'bg-warning text-dark'}">${c.estado}</span>` : ''}</td>
         </tr>`).join('');
     }
