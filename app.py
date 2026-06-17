@@ -27,9 +27,10 @@ app = Flask(__name__)
 app.secret_key = 'arca_2026_secret_key_change_in_prod'
 
 BASE        = os.path.dirname(os.path.abspath(__file__))
-UPLOAD      = os.path.join(BASE, 'uploads')
-CERTS       = os.path.join(BASE, 'certificados')
+UPLOAD       = os.path.join(BASE, 'uploads')
+CERTS        = os.path.join(BASE, 'certificados')
 CLIENTES_DIR = os.path.join(BASE, 'clientes')
+COMPRAS_DIR  = os.path.join(BASE, 'compras')
 
 _version_path = os.path.join(BASE, 'VERSION')
 APP_VERSION   = open(_version_path).read().strip() if os.path.exists(_version_path) else '—'
@@ -78,6 +79,7 @@ TIPO_NOMBRE = {
 os.makedirs(UPLOAD,       exist_ok=True)
 os.makedirs(CERTS,        exist_ok=True)
 os.makedirs(CLIENTES_DIR, exist_ok=True)
+os.makedirs(COMPRAS_DIR,  exist_ok=True)
 
 
 def _str_cae(v) -> str:
@@ -180,6 +182,21 @@ def _get_cliente(empresa_id: str, doc_nro) -> dict | None:
     if not cuit or cuit in ('0', ''):
         return None
     return _load_clientes(empresa_id).get(cuit)
+
+def _compras_path(empresa_id: str) -> str:
+    return os.path.join(COMPRAS_DIR, f'{empresa_id}.json')
+
+def _load_compras(empresa_id: str) -> list:
+    path = _compras_path(empresa_id)
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding='utf-8') as f:
+        return json.load(f)
+
+def _save_compras(empresa_id: str, compras: list):
+    path = _compras_path(empresa_id)
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(compras, f, ensure_ascii=False, indent=2)
 
 
 # ---------- inicialización ---------------------------------------------------
@@ -1465,6 +1482,140 @@ def api_clientes_sync():
                     'errores': errores[:10], 'total': len(clientes)})
 
 
+@app.route('/api/clientes/ventas')
+@login_required
+def api_clientes_ventas():
+    user       = _get_current_user()
+    empresa_id = request.args.get('empresa_id', '').strip()
+    cuit       = request.args.get('cuit', '').strip()
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa or not _user_can_access(user, empresa_id):
+        return jsonify({'error': 'Acceso denegado'}), 403
+    if not cuit:
+        return jsonify({'error': 'CUIT requerido'}), 400
+
+    registros = _leer_registros_reporte(empresa_id, desde='', hasta='', cliente='')
+    ventas = [r for r in registros if r.get('doc_nro') == cuit]
+    ventas.sort(key=lambda r: r.get('fecha', ''), reverse=True)
+    return jsonify({'ventas': ventas, 'total': len(ventas)})
+
+
+@app.route('/api/clientes/compras')
+@login_required
+def api_clientes_compras():
+    user       = _get_current_user()
+    empresa_id = request.args.get('empresa_id', '').strip()
+    cuit       = request.args.get('cuit', '').strip()
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa or not _user_can_access(user, empresa_id):
+        return jsonify({'error': 'Acceso denegado'}), 403
+
+    compras = _load_compras(empresa_id)
+    if cuit:
+        compras = [c for c in compras if c.get('cuit_emisor') == cuit]
+    compras.sort(key=lambda c: c.get('fecha', ''), reverse=True)
+    return jsonify({'compras': compras, 'total': len(compras)})
+
+
+@app.route('/api/clientes/importar-compras', methods=['POST'])
+@admin_required
+def api_clientes_importar_compras():
+    empresa_id = (request.form.get('empresa_id') or '').strip()
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 400
+
+    f = request.files.get('archivo')
+    if not f or not f.filename:
+        return jsonify({'error': 'No se recibió ningún archivo'}), 400
+    if not f.filename.lower().endswith(('.xlsx', '.xls')):
+        return jsonify({'error': 'El archivo debe ser .xlsx'}), 400
+
+    try:
+        wb = load_workbook(f)
+        ws = wb.active
+
+        fila_headers = 1
+        v1 = str(ws.cell(1, 1).value or '').strip()
+        v2 = str(ws.cell(2, 1).value or '').strip()
+        if v1 and v2 and 'Fecha' in v2:
+            fila_headers = 2
+
+        headers = [str(ws.cell(fila_headers, c).value or '').strip()
+                   for c in range(1, ws.max_column + 1)]
+
+        compras   = _load_compras(empresa_id)
+        caes_exist = {c.get('cae') for c in compras if c.get('cae')}
+
+        importados = 0
+        duplicados = 0
+        errores    = []
+
+        for row_idx in range(fila_headers + 1, ws.max_row + 1):
+            row = {headers[i]: ws.cell(row_idx, i + 1).value
+                   for i in range(len(headers))}
+
+            fecha_raw = row.get('Fecha')
+            if not fecha_raw:
+                continue
+
+            try:
+                if hasattr(fecha_raw, 'strftime'):
+                    fecha_dt = fecha_raw
+                else:
+                    fecha_dt = datetime.strptime(str(fecha_raw).strip(), '%d/%m/%Y')
+
+                cae = _str_cae(row.get('Cód. Autorización', '') or row.get('CAE', ''))
+                if cae and cae in caes_exist:
+                    duplicados += 1
+                    continue
+
+                cuit_emisor_raw = row.get('Nro. Doc. Emisor') or row.get('CUIT Emisor') or 0
+                cuit_emisor = str(int(float(cuit_emisor_raw))).strip() if cuit_emisor_raw else ''
+                denominacion = str(row.get('Denominación Emisor') or '').strip()
+
+                tipo_str   = str(row.get('Tipo') or '').strip()
+                imp_total  = round(float(row.get('Imp. Total') or 0), 2)
+                imp_neto_raw = row.get('Imp. Neto Gravado') or row.get('Neto Gravado Total')
+                imp_iva_raw  = row.get('IVA') or row.get('Total IVA')
+                imp_neto   = round(float(imp_neto_raw or 0), 2)
+                imp_iva    = round(float(imp_iva_raw or 0), 2)
+
+                punto_venta = int(float(row.get('Punto de Venta') or 0))
+                nro_desde   = int(float(row.get('Número Desde') or 0))
+
+                compras.append({
+                    'fecha':       fecha_dt.strftime('%Y-%m-%d'),
+                    'tipo':        tipo_str,
+                    'punto_venta': punto_venta,
+                    'nro_desde':   nro_desde,
+                    'cuit_emisor': cuit_emisor,
+                    'denominacion_emisor': denominacion,
+                    'imp_total':   imp_total,
+                    'imp_neto':    imp_neto,
+                    'imp_iva':     imp_iva,
+                    'cae':         cae,
+                    'moneda':      str(row.get('Moneda') or 'PES').strip(),
+                })
+
+                if cae:
+                    caes_exist.add(cae)
+                importados += 1
+
+            except Exception as ex:
+                errores.append(f'Fila {row_idx}: {ex}')
+
+        _save_compras(empresa_id, compras)
+        return jsonify({
+            'ok': True, 'importados': importados,
+            'duplicados': duplicados, 'total': len(compras),
+            'errores': errores[:10],
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/enviar-todos', methods=['POST'])
 @login_required
 def api_enviar_todos():
@@ -1706,6 +1857,7 @@ def _leer_registros_reporte(empresa_id: str, desde: str, hasta: str,
                     'empresa_id':   empresa_id,
                     'fecha':        str(row.get('fecha', ''))[:10],
                     'razon_social': razon,
+                    'doc_nro':      str(row.get('doc_nro', '')).split('.')[0].strip(),
                     'punto_venta':  int(row.get('punto_venta', 0)),
                     'nro_cbte':     int(row.get('nro_cbte', 0)),
                     'tipo_cbte':    t,

@@ -18,6 +18,10 @@
     .nav-tabs { border-bottom: none; }
     .nav-tabs .nav-link { border-radius: 10px 10px 0 0; }
     .toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; }
+    #tbody-clientes tr { cursor: pointer; }
+    #tbody-clientes tr:hover { background: #e8f0fe; }
+    .ficha-header { background: linear-gradient(135deg,#f0f4ff,#e8f5e9); border-radius: 12px; padding: 1.5rem; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
   </style>
 </head>
 <body>
@@ -48,7 +52,7 @@
   </div>
 </div>
 
-<div class="container">
+<div class="container pb-5">
 
   <ul class="nav nav-tabs" role="tablist">
     <li class="nav-item" role="presentation">
@@ -62,7 +66,14 @@
       <button class="nav-link" data-bs-toggle="tab"
               data-bs-target="#tab-importar" type="button" role="tab">
         <i class="bi bi-file-earmark-arrow-up text-success"></i>
-        <span class="ms-1">Importar desde AFIP</span>
+        <span class="ms-1">Importar Ventas AFIP</span>
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" data-bs-toggle="tab"
+              data-bs-target="#tab-compras" type="button" role="tab">
+        <i class="bi bi-cart-plus text-warning"></i>
+        <span class="ms-1">Importar Compras AFIP</span>
       </button>
     </li>
   </ul>
@@ -72,77 +83,189 @@
     <!-- ===== TAB: Clientes ===== -->
     <div class="tab-pane fade show active" id="tab-clientes" role="tabpanel">
 
-      <h5 class="mb-1"><i class="bi bi-people-fill text-primary"></i> Base de clientes</h5>
-      <p class="text-muted small mb-4">
-        Importá el listado de clientes desde un Excel (columnas: <strong>CUIT</strong> y <strong>CLIENTE</strong>)
-        y sincronizá con el Padrón A5 de AFIP para obtener el domicilio fiscal y la condición IVA.
-      </p>
+      <!-- Vista: listado de clientes -->
+      <div id="cli-listado">
 
-      <div class="row g-3 mb-4" style="max-width:560px">
-        <div class="col-12">
-          <label class="form-label fw-semibold">Empresa <span class="text-danger">*</span></label>
-          <select class="form-select" id="cli-empresa" onchange="cargarClientes()">
-            <option value="">— Seleccioná una empresa —</option>
-            {% for e in empresas %}
-            <option value="{{ e.id }}">{{ e.nombre }} ({{ e.cuit }})</option>
-            {% endfor %}
-          </select>
+        <h5 class="mb-1"><i class="bi bi-people-fill text-primary"></i> Base de clientes</h5>
+        <p class="text-muted small mb-4">
+          Importá el listado de clientes desde un Excel (columnas: <strong>CUIT</strong> y <strong>CLIENTE</strong>)
+          y sincronizá con el Padrón A5 de AFIP para obtener el domicilio fiscal y la condición IVA.
+          Hacé clic en un cliente para ver su ficha.
+        </p>
+
+        <div class="row g-3 mb-4" style="max-width:560px">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Empresa <span class="text-danger">*</span></label>
+            <select class="form-select" id="cli-empresa" onchange="cargarClientes()">
+              <option value="">— Seleccioná una empresa —</option>
+              {% for e in empresas %}
+              <option value="{{ e.id }}">{{ e.nombre }} ({{ e.cuit }})</option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
-      </div>
 
-      <div class="d-flex gap-2 flex-wrap mb-4">
-        <div>
-          <input type="file" id="cli-archivo" accept=".xlsx,.xls" class="d-none">
-          <button type="button" class="btn btn-success" id="btn-importar-clientes">
-            <i class="bi bi-file-earmark-arrow-up"></i> Importar Excel
+        <div class="d-flex gap-2 flex-wrap mb-4">
+          <div>
+            <input type="file" id="cli-archivo" accept=".xlsx,.xls" class="d-none">
+            <button type="button" class="btn btn-success" id="btn-importar-clientes">
+              <i class="bi bi-file-earmark-arrow-up"></i> Importar Excel
+            </button>
+          </div>
+          <button type="button" class="btn btn-primary" id="btn-sync-clientes">
+            <i class="bi bi-arrow-repeat"></i> Sincronizar con AFIP (Padrón A5)
           </button>
         </div>
-        <button type="button" class="btn btn-primary" id="btn-sync-clientes">
-          <i class="bi bi-arrow-repeat"></i> Sincronizar con AFIP (Padrón A5)
-        </button>
-      </div>
 
-      <div id="cli-resultado" class="mb-3 d-none"></div>
+        <div id="cli-resultado" class="mb-3 d-none"></div>
 
-      <div id="cli-tabla-wrapper" class="d-none">
-        <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
-          <h6 class="mb-0">Clientes registrados: <span id="cli-total">0</span></h6>
-          <small class="text-muted">Los clientes con domicilio aparecerán en los PDF de facturas</small>
-        </div>
+        <div id="cli-tabla-wrapper" class="d-none">
+          <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+            <h6 class="mb-0">Clientes registrados: <span id="cli-total">0</span></h6>
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-search text-muted"></i>
+              <input type="text" class="form-control form-control-sm" id="cli-buscar"
+                     placeholder="Buscar por nombre o CUIT..." style="width:260px">
+            </div>
+          </div>
 
-        <ul class="nav nav-tabs mb-0" id="cli-iva-tabs" role="tablist">
-          <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="cli-tab-todos" data-bs-toggle="tab"
-                    data-bs-target="#cli-pane-todos" type="button" role="tab">Todos</button>
-          </li>
-        </ul>
+          <ul class="nav nav-tabs mb-0" id="cli-iva-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="cli-tab-todos" data-bs-toggle="tab"
+                      data-bs-target="#cli-pane-todos" type="button" role="tab">Todos</button>
+            </li>
+          </ul>
 
-        <div class="tab-content" id="cli-iva-content">
-          <div class="tab-pane fade show active" id="cli-pane-todos" role="tabpanel">
-            <div class="table-responsive" style="max-height:420px; overflow-y:auto">
-              <table class="table table-sm align-middle table-hover mb-0">
-                <thead class="table-dark sticky-top">
-                  <tr>
-                    <th>CUIT</th>
-                    <th>Nombre</th>
-                    <th>Domicilio fiscal</th>
-                    <th>Cond. IVA</th>
-                    <th>Estado</th>
-                  </tr>
-                </thead>
-                <tbody id="tbody-clientes"></tbody>
-              </table>
+          <div class="tab-content" id="cli-iva-content">
+            <div class="tab-pane fade show active" id="cli-pane-todos" role="tabpanel">
+              <div class="table-responsive" style="max-height:420px; overflow-y:auto">
+                <table class="table table-sm align-middle table-hover mb-0">
+                  <thead class="table-dark sticky-top">
+                    <tr>
+                      <th>CUIT</th>
+                      <th>Nombre</th>
+                      <th>Domicilio fiscal</th>
+                      <th>Cond. IVA</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-clientes"></tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+
+      </div><!-- /cli-listado -->
+
+      <!-- Vista: ficha del cliente -->
+      <div id="cli-ficha" class="d-none">
+
+        <button class="btn btn-outline-secondary btn-sm mb-3" onclick="cerrarFicha()">
+          <i class="bi bi-arrow-left"></i> Volver al listado
+        </button>
+
+        <div class="ficha-header mb-4">
+          <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+            <div>
+              <h5 class="mb-1" id="ficha-nombre"></h5>
+              <div class="text-muted">
+                <span class="me-3"><i class="bi bi-upc-scan"></i> CUIT: <code id="ficha-cuit"></code></span>
+                <span id="ficha-estado-badge"></span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-2 small text-muted">
+            <div id="ficha-domicilio-row"><i class="bi bi-geo-alt"></i> <span id="ficha-domicilio"></span></div>
+            <div id="ficha-iva-row"><i class="bi bi-receipt"></i> <span id="ficha-iva"></span></div>
+          </div>
+        </div>
+
+        <ul class="nav nav-tabs mb-0" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ficha-tab-ventas"
+                    type="button" role="tab">
+              <i class="bi bi-arrow-up-right text-success"></i> Ventas
+              <span class="badge text-bg-secondary ms-1" id="ficha-ventas-count">0</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#ficha-tab-compras"
+                    type="button" role="tab">
+              <i class="bi bi-arrow-down-left text-danger"></i> Compras
+              <span class="badge text-bg-secondary ms-1" id="ficha-compras-count">0</span>
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content border border-top-0 rounded-bottom p-3" style="background:#fff">
+
+          <div class="tab-pane fade show active" id="ficha-tab-ventas" role="tabpanel">
+            <div id="ficha-ventas-loading" class="text-center py-3 text-muted">
+              <span class="spinner-border spinner-border-sm me-1"></span> Cargando ventas...
+            </div>
+            <div id="ficha-ventas-empty" class="text-center py-3 text-muted d-none">
+              No hay ventas registradas para este cliente.
+            </div>
+            <div id="ficha-ventas-tabla" class="d-none">
+              <div class="table-responsive" style="max-height:380px; overflow-y:auto">
+                <table class="table table-sm align-middle table-hover mb-0">
+                  <thead class="table-dark sticky-top">
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Tipo</th>
+                      <th>Nro</th>
+                      <th class="num">Neto</th>
+                      <th class="num">IVA</th>
+                      <th class="num">Total</th>
+                      <th>CAE</th>
+                    </tr>
+                  </thead>
+                  <tbody id="ficha-ventas-body"></tbody>
+                </table>
+              </div>
+              <div class="mt-2 text-end fw-semibold" id="ficha-ventas-total-row"></div>
+            </div>
+          </div>
+
+          <div class="tab-pane fade" id="ficha-tab-compras" role="tabpanel">
+            <div id="ficha-compras-loading" class="text-center py-3 text-muted">
+              <span class="spinner-border spinner-border-sm me-1"></span> Cargando compras...
+            </div>
+            <div id="ficha-compras-empty" class="text-center py-3 text-muted d-none">
+              No hay compras importadas de este proveedor.
+            </div>
+            <div id="ficha-compras-tabla" class="d-none">
+              <div class="table-responsive" style="max-height:380px; overflow-y:auto">
+                <table class="table table-sm align-middle table-hover mb-0">
+                  <thead class="table-dark sticky-top">
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Tipo</th>
+                      <th>PV-Nro</th>
+                      <th class="num">Neto</th>
+                      <th class="num">IVA</th>
+                      <th class="num">Total</th>
+                      <th>CAE</th>
+                    </tr>
+                  </thead>
+                  <tbody id="ficha-compras-body"></tbody>
+                </table>
+              </div>
+              <div class="mt-2 text-end fw-semibold" id="ficha-compras-total-row"></div>
+            </div>
+          </div>
+
+        </div>
+
+      </div><!-- /cli-ficha -->
 
     </div><!-- /tab-clientes -->
 
-    <!-- ===== TAB: Importar desde AFIP ===== -->
+    <!-- ===== TAB: Importar Ventas desde AFIP ===== -->
     <div class="tab-pane fade" id="tab-importar" role="tabpanel">
 
-      <h5 class="mb-1">Importar comprobantes desde AFIP</h5>
+      <h5 class="mb-1">Importar comprobantes emitidos desde AFIP</h5>
       <p class="text-muted small mb-4">
         Descargá el Excel de comprobantes desde <strong>AFIP → Mis Comprobantes Emitidos</strong>
         y subilo acá. El sistema los importa automáticamente al mes correspondiente de cada empresa
@@ -174,6 +297,42 @@
       <div id="imp-resultado" class="d-none"></div>
 
     </div><!-- /tab-importar -->
+
+    <!-- ===== TAB: Importar Compras desde AFIP ===== -->
+    <div class="tab-pane fade" id="tab-compras" role="tabpanel">
+
+      <h5 class="mb-1"><i class="bi bi-cart-plus text-warning"></i> Importar compras desde AFIP</h5>
+      <p class="text-muted small mb-4">
+        Descargá el Excel de comprobantes desde <strong>AFIP → Mis Comprobantes Recibidos</strong>
+        y subilo acá. Las compras se vinculan al proveedor por CUIT y se muestran en la ficha del cliente.
+        Los comprobantes ya existentes no se duplican (se detecta por CAE).
+      </p>
+
+      <div class="row g-3 mb-4" style="max-width:560px">
+        <div class="col-12">
+          <label class="form-label fw-semibold">Empresa <span class="text-danger">*</span></label>
+          <select class="form-select" id="comp-empresa">
+            <option value="">— Seleccioná una empresa —</option>
+            {% for e in empresas %}
+            <option value="{{ e.id }}">{{ e.nombre }} ({{ e.cuit }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Archivo Excel de AFIP <span class="text-danger">*</span></label>
+          <input type="file" class="form-control" id="comp-archivo" accept=".xlsx,.xls">
+          <div class="form-text">El archivo se llama "Mis_Comprobantes_Recibidos_CUIT_..."</div>
+        </div>
+        <div class="col-12">
+          <button type="button" class="btn btn-warning" id="btn-importar-compras">
+            <i class="bi bi-cart-plus"></i> Importar Compras
+          </button>
+        </div>
+      </div>
+
+      <div id="comp-resultado" class="d-none"></div>
+
+    </div><!-- /tab-compras -->
 
   </div><!-- /tab-content -->
 </div><!-- /container -->
@@ -214,12 +373,37 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function fmtMoney(v) {
+  v = parseFloat(v || 0);
+  const neg = v < 0;
+  const a = Math.abs(v).toFixed(2);
+  const [i, d] = a.split('.');
+  const s = i.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + d;
+  return (neg ? '-' : '') + s;
+}
+
+function fmtFecha(raw) {
+  if (!raw) return '';
+  const s = String(raw).substring(0, 10);
+  if (s.length === 10 && s[4] === '-') {
+    return s.substring(8,10) + '/' + s.substring(5,7) + '/' + s.substring(0,4);
+  }
+  return s;
+}
+
+// ===== DATOS EN MEMORIA ======================================================
+let _clientesData = [];
+
 // ===== CLIENTES ==============================================================
 
 function _renderClienteRows(lista) {
   if (!lista.length) return '<tr><td colspan="5" class="text-muted text-center py-3">Sin clientes en esta categoría.</td></tr>';
   return lista.map(c => `
-    <tr>
+    <tr onclick="abrirFicha('${escHtml(c.cuit)}')"
+        data-cuit="${escHtml(c.cuit)}" data-nombre="${escHtml(c.nombre)}"
+        data-domicilio="${escHtml(c.domicilio || '')}"
+        data-iva="${escHtml(c.condicion_iva || '')}"
+        data-estado="${escHtml(c.estado || '')}">
       <td><code>${c.cuit}</code></td>
       <td>${escHtml(c.nombre)}</td>
       <td class="${c.domicilio ? '' : 'text-muted fst-italic'}">${c.domicilio ? escHtml(c.domicilio) : 'Sin sincronizar'}</td>
@@ -249,12 +433,13 @@ async function cargarClientes() {
     const resp = await fetch(`/api/clientes?empresa_id=${empresaId}`);
     const data = await resp.json();
     if (data.error) { mostrarNotif(data.error, 'danger'); return; }
-    document.getElementById('cli-total').textContent = data.total;
 
-    // Pestaña "Todos"
+    _clientesData = data.clientes;
+    document.getElementById('cli-total').textContent = data.total;
+    document.getElementById('cli-buscar').value = '';
+
     tbody.innerHTML = _renderClienteRows(data.clientes);
 
-    // Agrupar por condición IVA
     const grupos = {};
     data.clientes.forEach(c => {
       const key = c.condicion_iva || 'Sin definir';
@@ -262,11 +447,9 @@ async function cargarClientes() {
       grupos[key].push(c);
     });
 
-    // Limpiar pestañas anteriores (excepto "Todos")
     tabs.querySelectorAll('.nav-item:not(:first-child)').forEach(el => el.remove());
     content.querySelectorAll('.tab-pane:not(:first-child)').forEach(el => el.remove());
 
-    // Crear una pestaña por cada condición IVA
     const colores = {
       'Responsable Monotributo': 'text-bg-info',
       'IVA Responsable Inscripto': 'text-bg-primary',
@@ -294,7 +477,6 @@ async function cargarClientes() {
       document.getElementById(id + '-body').innerHTML = _renderClienteRows(grupos[cond]);
     });
 
-    // Actualizar badge en pestaña "Todos"
     document.getElementById('cli-tab-todos').innerHTML = `Todos <span class="badge text-bg-dark ms-1">${data.total}</span>`;
     wrapper.classList.remove('d-none');
   } catch (err) {
@@ -302,6 +484,145 @@ async function cargarClientes() {
   }
 }
 
+// ===== BUSCAR ================================================================
+document.getElementById('cli-buscar').addEventListener('input', function() {
+  const q = this.value.toLowerCase().trim();
+  document.querySelectorAll('#cli-iva-content tr[data-cuit]').forEach(tr => {
+    const cuit   = (tr.dataset.cuit || '').toLowerCase();
+    const nombre = (tr.dataset.nombre || '').toLowerCase();
+    tr.style.display = (!q || cuit.includes(q) || nombre.includes(q)) ? '' : 'none';
+  });
+});
+
+// ===== FICHA =================================================================
+function abrirFicha(cuit) {
+  const c = _clientesData.find(x => x.cuit === cuit);
+  if (!c) return;
+
+  document.getElementById('ficha-nombre').textContent = c.nombre || cuit;
+  document.getElementById('ficha-cuit').textContent = cuit;
+
+  const domRow = document.getElementById('ficha-domicilio-row');
+  const ivaRow = document.getElementById('ficha-iva-row');
+  document.getElementById('ficha-domicilio').textContent = c.domicilio || 'Sin sincronizar';
+  document.getElementById('ficha-iva').textContent = c.condicion_iva || 'Sin sincronizar';
+  domRow.classList.toggle('text-muted', !c.domicilio);
+  ivaRow.classList.toggle('text-muted', !c.condicion_iva);
+
+  const estadoBadge = document.getElementById('ficha-estado-badge');
+  if (c.estado) {
+    estadoBadge.innerHTML = `<span class="badge ${c.estado === 'ACTIVO' ? 'bg-success' : 'bg-warning text-dark'}">${escHtml(c.estado)}</span>`;
+  } else {
+    estadoBadge.innerHTML = '';
+  }
+
+  document.getElementById('cli-listado').classList.add('d-none');
+  document.getElementById('cli-ficha').classList.remove('d-none');
+
+  cargarFichaVentas(cuit);
+  cargarFichaCompras(cuit);
+}
+
+function cerrarFicha() {
+  document.getElementById('cli-ficha').classList.add('d-none');
+  document.getElementById('cli-listado').classList.remove('d-none');
+}
+
+async function cargarFichaVentas(cuit) {
+  const empresaId = document.getElementById('cli-empresa').value;
+  const loading = document.getElementById('ficha-ventas-loading');
+  const empty   = document.getElementById('ficha-ventas-empty');
+  const tabla   = document.getElementById('ficha-ventas-tabla');
+  const body    = document.getElementById('ficha-ventas-body');
+  const totalRow = document.getElementById('ficha-ventas-total-row');
+  const badge   = document.getElementById('ficha-ventas-count');
+
+  loading.classList.remove('d-none');
+  empty.classList.add('d-none');
+  tabla.classList.add('d-none');
+
+  try {
+    const resp = await fetch(`/api/clientes/ventas?empresa_id=${empresaId}&cuit=${cuit}`);
+    const data = await resp.json();
+    badge.textContent = data.total || 0;
+
+    if (!data.ventas || !data.ventas.length) {
+      empty.classList.remove('d-none');
+      return;
+    }
+
+    let sumTotal = 0;
+    body.innerHTML = data.ventas.map(v => {
+      sumTotal += v.imp_total;
+      const nro = String(v.punto_venta).padStart(5,'0') + '-' + String(v.nro_cbte).padStart(8,'0');
+      return `<tr>
+        <td>${fmtFecha(v.fecha)}</td>
+        <td><small>${escHtml(v.tipo_nombre)}</small></td>
+        <td><code>${nro}</code></td>
+        <td class="num">${fmtMoney(v.imp_neto)}</td>
+        <td class="num">${fmtMoney(v.imp_iva)}</td>
+        <td class="num fw-semibold">${fmtMoney(v.imp_total)}</td>
+        <td><small class="text-muted">${v.cae || ''}</small></td>
+      </tr>`;
+    }).join('');
+    totalRow.innerHTML = `Total ventas: <span class="text-success">$ ${fmtMoney(sumTotal)}</span>`;
+    tabla.classList.remove('d-none');
+  } catch (err) {
+    empty.textContent = 'Error cargando ventas: ' + err;
+    empty.classList.remove('d-none');
+  } finally {
+    loading.classList.add('d-none');
+  }
+}
+
+async function cargarFichaCompras(cuit) {
+  const empresaId = document.getElementById('cli-empresa').value;
+  const loading = document.getElementById('ficha-compras-loading');
+  const empty   = document.getElementById('ficha-compras-empty');
+  const tabla   = document.getElementById('ficha-compras-tabla');
+  const body    = document.getElementById('ficha-compras-body');
+  const totalRow = document.getElementById('ficha-compras-total-row');
+  const badge   = document.getElementById('ficha-compras-count');
+
+  loading.classList.remove('d-none');
+  empty.classList.add('d-none');
+  tabla.classList.add('d-none');
+
+  try {
+    const resp = await fetch(`/api/clientes/compras?empresa_id=${empresaId}&cuit=${cuit}`);
+    const data = await resp.json();
+    badge.textContent = data.total || 0;
+
+    if (!data.compras || !data.compras.length) {
+      empty.classList.remove('d-none');
+      return;
+    }
+
+    let sumTotal = 0;
+    body.innerHTML = data.compras.map(c => {
+      sumTotal += c.imp_total;
+      const nro = String(c.punto_venta || 0).padStart(5,'0') + '-' + String(c.nro_desde || 0).padStart(8,'0');
+      return `<tr>
+        <td>${fmtFecha(c.fecha)}</td>
+        <td><small>${escHtml(c.tipo || '')}</small></td>
+        <td><code>${nro}</code></td>
+        <td class="num">${fmtMoney(c.imp_neto)}</td>
+        <td class="num">${fmtMoney(c.imp_iva)}</td>
+        <td class="num fw-semibold">${fmtMoney(c.imp_total)}</td>
+        <td><small class="text-muted">${c.cae || ''}</small></td>
+      </tr>`;
+    }).join('');
+    totalRow.innerHTML = `Total compras: <span class="text-danger">$ ${fmtMoney(sumTotal)}</span>`;
+    tabla.classList.remove('d-none');
+  } catch (err) {
+    empty.textContent = 'Error cargando compras: ' + err;
+    empty.classList.remove('d-none');
+  } finally {
+    loading.classList.add('d-none');
+  }
+}
+
+// ===== IMPORTAR CLIENTES =====================================================
 document.getElementById('btn-importar-clientes').addEventListener('click', () => {
   const empresaId = document.getElementById('cli-empresa').value;
   if (!empresaId) { mostrarNotif('Seleccioná una empresa primero.', 'danger'); return; }
@@ -347,6 +668,7 @@ document.getElementById('cli-archivo').addEventListener('change', async function
   }
 });
 
+// ===== SYNC AFIP =============================================================
 document.getElementById('btn-sync-clientes').addEventListener('click', async () => {
   const empresaId = document.getElementById('cli-empresa').value;
   if (!empresaId) { mostrarNotif('Seleccioná una empresa primero.', 'danger'); return; }
@@ -388,7 +710,7 @@ document.getElementById('btn-sync-clientes').addEventListener('click', async () 
   }
 });
 
-// ===== IMPORTAR AFIP =========================================================
+// ===== IMPORTAR VENTAS AFIP ==================================================
 document.getElementById('btn-importar').addEventListener('click', async () => {
   const empresaId = document.getElementById('imp-empresa').value;
   const archivo   = document.getElementById('imp-archivo').files[0];
@@ -410,7 +732,7 @@ document.getElementById('btn-importar').addEventListener('click', async () => {
     const data = await resp.json();
 
     if (data.error) {
-      resDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+      resDiv.innerHTML = `<div class="alert alert-danger">${escHtml(data.error)}</div>`;
     } else {
       let html = `<div class="alert alert-success">
         <strong>Importación completada</strong><br>
@@ -427,11 +749,56 @@ document.getElementById('btn-importar').addEventListener('click', async () => {
       document.getElementById('imp-archivo').value = '';
     }
   } catch (err) {
-    resDiv.innerHTML = `<div class="alert alert-danger">Error de red: ${err}</div>`;
+    resDiv.innerHTML = `<div class="alert alert-danger">Error de red: ${escHtml(String(err))}</div>`;
   } finally {
     resDiv.classList.remove('d-none');
     btn.disabled = false;
     btn.innerHTML = '<i class="bi bi-file-earmark-arrow-up"></i> Importar';
+  }
+});
+
+// ===== IMPORTAR COMPRAS AFIP =================================================
+document.getElementById('btn-importar-compras').addEventListener('click', async () => {
+  const empresaId = document.getElementById('comp-empresa').value;
+  const archivo   = document.getElementById('comp-archivo').files[0];
+  const resDiv    = document.getElementById('comp-resultado');
+
+  if (!empresaId) { mostrarNotif('Seleccioná una empresa.', 'danger'); return; }
+  if (!archivo)   { mostrarNotif('Seleccioná el archivo Excel de AFIP.', 'danger'); return; }
+
+  const btn = document.getElementById('btn-importar-compras');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Importando compras...';
+  resDiv.classList.add('d-none');
+
+  try {
+    const fd = new FormData();
+    fd.append('empresa_id', empresaId);
+    fd.append('archivo', archivo);
+    const resp = await fetch('/api/clientes/importar-compras', { method: 'POST', body: fd });
+    const data = await resp.json();
+
+    if (data.error) {
+      resDiv.innerHTML = `<div class="alert alert-danger">${escHtml(data.error)}</div>`;
+    } else {
+      let html = `<div class="alert alert-success">
+        <strong>Importación de compras completada</strong><br>
+        <i class="bi bi-check-circle"></i> Importados: <strong>${data.importados}</strong> &nbsp;
+        <i class="bi bi-skip-forward"></i> Duplicados omitidos: <strong>${data.duplicados}</strong> &nbsp;
+        <i class="bi bi-archive"></i> Total compras: <strong>${data.total}</strong>`;
+      if (data.errores && data.errores.length) {
+        html += `<br><span class="text-warning"><i class="bi bi-exclamation-triangle"></i> Filas con error: ${data.errores.join(' | ')}</span>`;
+      }
+      html += `</div>`;
+      resDiv.innerHTML = html;
+      document.getElementById('comp-archivo').value = '';
+    }
+  } catch (err) {
+    resDiv.innerHTML = `<div class="alert alert-danger">Error de red: ${escHtml(String(err))}</div>`;
+  } finally {
+    resDiv.classList.remove('d-none');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-cart-plus"></i> Importar Compras';
   }
 });
 </script>
