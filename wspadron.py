@@ -24,19 +24,22 @@ def consultar_persona(token: str, sign: str, cuit_rep: str, cuit_consulta: str, 
     else:
         p = result
 
-    tipo = str(getattr(p, 'tipoPersona', '') or '')
+    # personaServiceA5 anida datos personales en datosGenerales;
+    # padron_a4 los tiene en el nivel superior.
+    dg = getattr(p, 'datosGenerales', None) or p
+
+    tipo = str(getattr(dg, 'tipoPersona', '') or '')
 
     if tipo == 'FISICA':
-        apellido     = str(getattr(p, 'apellido', '') or '').strip()
-        nombre_pila  = str(getattr(p, 'nombre',   '') or '').strip()
+        apellido     = str(getattr(dg, 'apellido', '') or '').strip()
+        nombre_pila  = str(getattr(dg, 'nombre',   '') or '').strip()
         razon_social = f'{apellido} {nombre_pila}'.strip()
     else:
-        razon_social = str(getattr(p, 'razonSocial', '') or '').strip()
+        razon_social = str(getattr(dg, 'razonSocial', '') or '').strip()
 
-    # ws_sr_constancia_inscripcion usa domicilioFiscal (objeto único).
-    # ws_sr_padron_a4 usa domicilio (lista).
+    # domicilioFiscal: puede estar en datosGenerales o en el nivel superior
     domicilio = ''
-    dom_fiscal = getattr(p, 'domicilioFiscal', None)
+    dom_fiscal = getattr(dg, 'domicilioFiscal', None) or getattr(p, 'domicilioFiscal', None)
     if dom_fiscal:
         parts = [
             str(getattr(dom_fiscal, 'direccion',           '') or ''),
@@ -63,7 +66,7 @@ def consultar_persona(token: str, sign: str, cuit_rep: str, cuit_consulta: str, 
         'tipo':         tipo,
         'razon_social': razon_social,
         'domicilio':    domicilio,
-        'estado':       str(getattr(p, 'estadoClave', '') or ''),
+        'estado':       str(getattr(dg, 'estadoClave', '') or ''),
         'condicion_iva': _extraer_condicion_iva(p),
     }
 
