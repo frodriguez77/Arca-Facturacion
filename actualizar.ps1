@@ -66,6 +66,7 @@ $archivos = @(
     'templates/admin.html',
     'templates/index.html',
     'templates/reportes.html',
+    'templates/clientes.html',
     'templates/login.html',
     'templates/error.html'
 )

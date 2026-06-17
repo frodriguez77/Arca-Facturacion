@@ -61,6 +61,7 @@ git checkout origin/%BRANCH% -- crear_acceso_directo.bat && echo  [OK] crear_acc
 git checkout origin/%BRANCH% -- templates/admin.html    && echo  [OK] templates/admin.html
 git checkout origin/%BRANCH% -- templates/index.html    && echo  [OK] templates/index.html
 git checkout origin/%BRANCH% -- templates/reportes.html && echo  [OK] templates/reportes.html
+git checkout origin/%BRANCH% -- templates/clientes.html && echo  [OK] templates/clientes.html
 git checkout origin/%BRANCH% -- templates/login.html    && echo  [OK] templates/login.html
 git checkout origin/%BRANCH% -- templates/error.html    && echo  [OK] templates/error.html
 

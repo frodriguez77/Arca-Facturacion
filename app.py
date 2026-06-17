@@ -2061,6 +2061,17 @@ def admin_restore():
         return jsonify({'error': str(e)}), 500
 
 
+# ---------- clientes (página independiente) ------------------------------------
+
+@app.route('/clientes')
+@login_required
+def clientes():
+    user     = _get_current_user()
+    empresas = _user_empresas(user)
+    return render_template('clientes.html', empresas=empresas,
+                           current_user=user)
+
+
 # ---------- administración ---------------------------------------------------
 
 @app.route('/admin')
