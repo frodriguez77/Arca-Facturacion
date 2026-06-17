@@ -867,11 +867,12 @@ def api_consultar_cuit():
         token, sign = wsaa.get_ticket('ws_sr_constancia_inscripcion', cert_path, key_path, wsaa_url, empresa['cuit'])
         data = wspadron.consultar_persona(token, sign, empresa['cuit'], cuit_consulta, padron_wsdl)
 
-        # Actualizar domicilio en base local si ya existe el cliente
+        # Actualizar datos en base local si ya existe el cliente
         clientes = _load_clientes(empresa_id)
         if cuit_consulta in clientes:
-            clientes[cuit_consulta]['domicilio'] = data.get('domicilio', '')
-            clientes[cuit_consulta]['estado']    = data.get('estado', '')
+            clientes[cuit_consulta]['domicilio']     = data.get('domicilio', '')
+            clientes[cuit_consulta]['estado']         = data.get('estado', '')
+            clientes[cuit_consulta]['condicion_iva'] = data.get('condicion_iva', '')
             _save_clientes(empresa_id, clientes)
 
         return jsonify({'ok': True, **data})
@@ -1453,6 +1454,8 @@ def api_clientes_sync():
                 cliente['domicilio'] = info['domicilio']
             if info.get('estado'):
                 cliente['estado']    = info['estado']
+            if info.get('condicion_iva'):
+                cliente['condicion_iva'] = info['condicion_iva']
             actualizados += 1
         except Exception as e:
             errores.append(f'{cuit}: {str(e)[:60]}')

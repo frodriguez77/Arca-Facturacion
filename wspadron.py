@@ -64,4 +64,27 @@ def consultar_persona(token: str, sign: str, cuit_rep: str, cuit_consulta: str, 
         'razon_social': razon_social,
         'domicilio':    domicilio,
         'estado':       str(getattr(p, 'estadoClave', '') or ''),
+        'condicion_iva': _extraer_condicion_iva(p),
     }
+
+
+def _extraer_condicion_iva(p) -> str:
+    if getattr(p, 'datosMonotributo', None):
+        return 'Responsable Monotributo'
+
+    datos_rg = getattr(p, 'datosRegimenGeneral', None)
+    if datos_rg:
+        imp_list = list(getattr(datos_rg, 'impuesto', None) or [])
+        ids_imp = set()
+        for imp in imp_list:
+            try:
+                ids_imp.add(int(getattr(imp, 'idImpuesto', 0)))
+            except (ValueError, TypeError):
+                pass
+        if 30 in ids_imp:
+            return 'IVA Responsable Inscripto'
+        if 32 in ids_imp:
+            return 'IVA Sujeto Exento'
+        return 'IVA Responsable Inscripto'
+
+    return 'Consumidor Final'

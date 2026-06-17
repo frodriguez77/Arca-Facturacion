@@ -224,8 +224,12 @@ def _page(c, titulo, emp, reg, res, cliente=None, forma_pago=''):
 
     fila_rec('Señor/es',       razon_soc,  0.00*cm)
     fila_rec(doc_nom,          doc_nro,    0.55*cm)
-    fila_rec('Condición IVA',  'Responsable monotributo' if letra=='C' else 'Responsable Inscripto',
-             1.10*cm)
+    if doc_tipo == 99:
+        cond_iva = 'Consumidor Final'
+    else:
+        cond_iva_default = 'Responsable Monotributo' if letra == 'C' else 'IVA Responsable Inscripto'
+        cond_iva = (cliente or {}).get('condicion_iva', '') or cond_iva_default
+    fila_rec('Condición IVA', cond_iva, 1.10*cm)
     fila_rec('Concepto',       conc_nom,   1.65*cm)
 
     y_rec_extra = 0
