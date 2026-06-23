@@ -1329,7 +1329,7 @@ def api_test_ai():
                 timeout=30)
         elif provider == 'anthropic':
             resp = _req.post('https://api.anthropic.com/v1/messages',
-                headers={'x-api-key': api_key, 'anthropic-version': '2024-10-22', 'Content-Type': 'application/json'},
+                headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json'},
                 json={'model': model, 'max_tokens': 10, 'messages': [{'role': 'user', 'content': prompt}]},
                 timeout=30)
         elif provider == 'google':
@@ -1346,10 +1346,15 @@ def api_test_ai():
             try:
                 body = resp.json()
                 err = body.get('error', {})
-                detail = err.get('message', '') if isinstance(err, dict) else str(err)
+                if isinstance(err, dict):
+                    detail = err.get('message', '')
+                    etype = err.get('type', '')
+                    if etype:
+                        detail = f'[{etype}] {detail}'
+                else:
+                    detail = str(err)
             except Exception:
                 detail = resp.text[:300]
-            # Sanitizar API key del mensaje
             if api_key and api_key in detail:
                 detail = detail.replace(api_key, '***')
             return jsonify({'error': f'Error {resp.status_code}: {detail or resp.reason}'}), 400
@@ -1486,7 +1491,7 @@ def _call_ai_extract(text: str, tipo: str, file_bytes: bytes = None) -> dict:
             'https://api.anthropic.com/v1/messages',
             headers={
                 'x-api-key': api_key,
-                'anthropic-version': '2024-10-22',
+                'anthropic-version': '2023-06-01',
                 'anthropic-beta': 'pdfs-2024-09-25',
                 'Content-Type': 'application/json',
             },
