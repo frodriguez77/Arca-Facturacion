@@ -1257,7 +1257,7 @@ def _load_ai_config() -> dict:
     return {
         'providers': {
             'openai':    {'api_key': '', 'model': 'gpt-4o',                    'enabled': False},
-            'anthropic': {'api_key': '', 'model': 'claude-sonnet-4-20250514', 'enabled': False},
+            'anthropic': {'api_key': '', 'model': 'claude-3-5-sonnet-20241022', 'enabled': False},
             'google':    {'api_key': '', 'model': 'gemini-1.5-flash',          'enabled': False},
         },
         'default_provider': ''
