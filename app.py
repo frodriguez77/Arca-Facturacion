@@ -1258,7 +1258,7 @@ def _load_ai_config() -> dict:
         'providers': {
             'openai':    {'api_key': '', 'model': 'gpt-4o',                    'enabled': False},
             'anthropic': {'api_key': '', 'model': 'claude-sonnet-4-20250514', 'enabled': False},
-            'google':    {'api_key': '', 'model': 'gemini-2.0-flash',          'enabled': False},
+            'google':    {'api_key': '', 'model': 'gemini-1.5-flash',          'enabled': False},
         },
         'default_provider': ''
     }
@@ -1330,7 +1330,7 @@ def _ai_post_with_retry(req_mod, url, max_retries=3, **kwargs):
     for attempt in range(max_retries + 1):
         resp = req_mod.post(url, **kwargs)
         if resp.status_code == 429 and attempt < max_retries:
-            wait = (attempt + 1) * 15
+            wait = (attempt + 1) * 30
             time.sleep(wait)
             continue
         resp.raise_for_status()
