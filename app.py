@@ -1334,17 +1334,19 @@ def _ai_post_with_retry(req_mod, url, max_retries=3, **kwargs):
             time.sleep(wait)
             continue
         if resp.status_code >= 400:
+            detail = ''
             try:
                 body = resp.json()
-                detail = body.get('error', {}).get('message', '') if isinstance(body.get('error'), dict) else str(body.get('error', ''))
-                if detail:
-                    raise ValueError(f'{resp.status_code} - {detail}')
-            except (ValueError, KeyError):
-                pass
-            resp.raise_for_status()
+                err = body.get('error', {})
+                if isinstance(err, dict):
+                    detail = err.get('message', '')
+                else:
+                    detail = str(err)
+            except Exception:
+                detail = resp.text[:300]
+            raise ValueError(f'Error {resp.status_code}: {detail or resp.reason}')
         return resp
-    resp.raise_for_status()
-    return resp
+    raise ValueError(f'Error {resp.status_code} después de {max_retries} reintentos')
 
 
 def _call_ai_extract(text: str, tipo: str, file_bytes: bytes = None) -> dict:
