@@ -2665,10 +2665,20 @@ def api_check_update():
         except Exception:
             latest = None
 
+    def _ver_tuple(v):
+        try:
+            return tuple(int(x) for x in v.split('.'))
+        except Exception:
+            return (0,)
+
+    is_newer = False
+    if latest:
+        is_newer = _ver_tuple(latest) > _ver_tuple(APP_VERSION)
+
     return jsonify({
         'current': APP_VERSION,
         'latest':  latest,
-        'update':  bool(latest and latest != APP_VERSION),
+        'update':  is_newer,
     })
 
 
