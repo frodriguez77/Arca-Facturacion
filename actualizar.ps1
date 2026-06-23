@@ -86,7 +86,24 @@ Write-Host ''
 if ($AutoReiniciar) {
     Write-Host '  Reiniciando ARCA Facturacion...' -ForegroundColor Cyan
     Start-Sleep -Seconds 1
-    Start-Process wscript.exe -ArgumentList "`"$BASE\iniciar_arca.vbs`""
+    # Iniciar servidor directamente (NO relanzar iniciar_arca.vbs para evitar loop)
+    $pythonPath = (Get-Command python -ErrorAction SilentlyContinue).Source
+    if ($pythonPath) {
+        $pythonDir = Split-Path $pythonPath
+        $arcaExe   = Join-Path $pythonDir 'arca.exe'
+        $pythonw   = Join-Path $pythonDir 'pythonw.exe'
+        if (Test-Path $arcaExe) {
+            Start-Process -FilePath $arcaExe -ArgumentList "`"$BASE\app.py`"" -WindowStyle Hidden
+        } elseif (Test-Path $pythonw) {
+            Start-Process -FilePath $pythonw -ArgumentList "`"$BASE\app.py`"" -WindowStyle Hidden
+        } else {
+            Start-Process py -ArgumentList "`"$BASE\app.py`"" -WindowStyle Hidden
+        }
+    } else {
+        Start-Process py -ArgumentList "`"$BASE\app.py`"" -WindowStyle Hidden
+    }
+    Start-Sleep -Seconds 3
+    Start-Process 'http://localhost:5000'
 } else {
     $r = Read-Host '  Reiniciar el sistema ahora? (S/N)'
     if ($r -match '^[sS]') {
