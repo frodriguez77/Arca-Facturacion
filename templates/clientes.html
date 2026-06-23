@@ -711,8 +711,8 @@ document.getElementById('cli-buscar').addEventListener('input', function() {
   document.querySelectorAll('#cli-iva-content tr[data-cuit]').forEach(tr => {
     const cuit   = (tr.dataset.cuit || '').toLowerCase();
     const nombre = (tr.dataset.nombre || '').toLowerCase();
-    const codigo = (tr.dataset.codigo || '').toLowerCase();
-    tr.style.display = (!q || cuit.includes(q) || nombre.includes(q) || codigo.includes(q)) ? '' : 'none';
+    const codigo = (tr.dataset.codigo || '');
+    tr.style.display = (!q || cuit.includes(q) || nombre.includes(q) || codigo === q) ? '' : 'none';
   });
 });
 
