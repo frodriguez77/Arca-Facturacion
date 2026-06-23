@@ -1394,6 +1394,7 @@ def api_clientes_importar():
 
         cuit_col   = next((c for c in df.columns if 'CUIT' in c), None)
         nombre_col = next((c for c in df.columns if 'CLIENTE' in c or 'NOMBRE' in c or 'RAZON' in c), None)
+        codigo_col = next((c for c in df.columns if c in ('Nº', 'NRO', 'CODIGO', 'CÓDIGO', 'COD', 'N°', 'Nº'.upper())), None)
 
         if not cuit_col or not nombre_col:
             return jsonify({'error': f'No se encontraron columnas CUIT y CLIENTE. Columnas: {list(df.columns)}'}), 400
@@ -1411,15 +1412,27 @@ def api_clientes_importar():
             if not cuit_str or cuit_str == '0':
                 continue
             nombre = str(raw_nombre or '').strip()
+            codigo = ''
+            if codigo_col:
+                raw_cod = row.get(codigo_col)
+                if raw_cod is not None and not pd.isna(raw_cod):
+                    codigo = str(int(float(raw_cod))) if isinstance(raw_cod, (int, float)) else str(raw_cod).strip()
 
             if cuit_str in clientes:
+                changed = False
                 if clientes[cuit_str].get('nombre') != nombre:
                     clientes[cuit_str]['nombre'] = nombre
+                    changed = True
+                if codigo and clientes[cuit_str].get('codigo') != codigo:
+                    clientes[cuit_str]['codigo'] = codigo
+                    changed = True
+                if changed:
                     actualizados += 1
             else:
                 clientes[cuit_str] = {
                     'cuit':      cuit_str,
                     'nombre':    nombre,
+                    'codigo':    codigo,
                     'domicilio': '',
                     'estado':    '',
                 }

@@ -166,7 +166,7 @@
               <span class="vr opacity-25"></span>
               <i class="bi bi-search text-muted"></i>
               <input type="text" class="form-control form-control-sm" id="cli-buscar"
-                     placeholder="Buscar por nombre o CUIT..." style="width:260px">
+                     placeholder="Buscar por Nº, nombre o CUIT..." style="width:260px">
             </div>
           </div>
 
@@ -183,6 +183,7 @@
                 <table class="table table-sm align-middle table-hover mb-0">
                   <thead class="table-dark sticky-top">
                     <tr>
+                      <th class="text-center" style="width:50px">Nº</th>
                       <th>CUIT</th>
                       <th>Nombre</th>
                       <th>Domicilio fiscal</th>
@@ -223,6 +224,7 @@
                 <div>
                   <h4 class="mb-0" id="ficha-nombre"></h4>
                   <div class="ficha-subtitle">
+                    <span id="ficha-codigo-tag" class="d-none badge bg-light text-dark me-2"></span>
                     CUIT: <code class="text-white" id="ficha-cuit"></code>
                     <span class="ms-2" id="ficha-estado-badge"></span>
                   </div>
@@ -526,13 +528,12 @@ let _clientesData = [];
 // ===== CLIENTES ==============================================================
 
 function _renderClienteRows(lista) {
-  if (!lista.length) return '<tr><td colspan="5" class="text-muted text-center py-3">Sin clientes en esta categoría.</td></tr>';
+  if (!lista.length) return '<tr><td colspan="6" class="text-muted text-center py-3">Sin clientes en esta categoría.</td></tr>';
   return lista.map(c => `
     <tr onclick="abrirFicha('${escHtml(c.cuit)}')"
         data-cuit="${escHtml(c.cuit)}" data-nombre="${escHtml(c.nombre)}"
-        data-domicilio="${escHtml(c.domicilio || '')}"
-        data-iva="${escHtml(c.condicion_iva || '')}"
-        data-estado="${escHtml(c.estado || '')}">
+        data-codigo="${escHtml(c.codigo || '')}">
+      <td class="text-center"><small class="text-muted">${c.codigo || ''}</small></td>
       <td><code>${c.cuit}</code></td>
       <td>${escHtml(c.nombre)}</td>
       <td class="${c.domicilio ? '' : 'text-muted fst-italic'}">${c.domicilio ? escHtml(c.domicilio) : 'Sin sincronizar'}</td>
@@ -545,7 +546,7 @@ function _tablaHtml(bodyId) {
   return `<div class="table-responsive" style="max-height:420px; overflow-y:auto">
     <table class="table table-sm align-middle table-hover mb-0">
       <thead class="table-dark sticky-top">
-        <tr><th>CUIT</th><th>Nombre</th><th>Domicilio fiscal</th><th>Cond. IVA</th><th>Estado</th></tr>
+        <tr><th class="text-center" style="width:50px">Nº</th><th>CUIT</th><th>Nombre</th><th>Domicilio fiscal</th><th>Cond. IVA</th><th>Estado</th></tr>
       </thead>
       <tbody id="${bodyId}"></tbody>
     </table></div>`;
@@ -619,7 +620,8 @@ document.getElementById('cli-buscar').addEventListener('input', function() {
   document.querySelectorAll('#cli-iva-content tr[data-cuit]').forEach(tr => {
     const cuit   = (tr.dataset.cuit || '').toLowerCase();
     const nombre = (tr.dataset.nombre || '').toLowerCase();
-    tr.style.display = (!q || cuit.includes(q) || nombre.includes(q)) ? '' : 'none';
+    const codigo = (tr.dataset.codigo || '').toLowerCase();
+    tr.style.display = (!q || cuit.includes(q) || nombre.includes(q) || codigo.includes(q)) ? '' : 'none';
   });
 });
 
@@ -638,6 +640,14 @@ function abrirFicha(cuit) {
 
   document.getElementById('ficha-nombre').textContent = c.nombre || cuit;
   document.getElementById('ficha-cuit').textContent = _fmtCuit(cuit);
+
+  const codigoTag = document.getElementById('ficha-codigo-tag');
+  if (c.codigo) {
+    codigoTag.textContent = 'Nº ' + c.codigo;
+    codigoTag.classList.remove('d-none');
+  } else {
+    codigoTag.classList.add('d-none');
+  }
 
   const estadoBadge = document.getElementById('ficha-estado-badge');
   if (c.estado) {
