@@ -950,8 +950,18 @@
           <div class="row g-2">
             <div class="col-md-8">
               <label class="form-label small">API Key</label>
-              <input type="password" class="form-control form-control-sm" id="ai-openai-key"
-                     placeholder="sk-...">
+              <div class="input-group input-group-sm">
+                <input type="password" class="form-control" id="ai-openai-key" placeholder="sk-...">
+                <button class="btn btn-outline-secondary" type="button" onclick="toggleAiKey('openai')" title="Mostrar/ocultar">
+                  <i class="bi bi-eye" id="ai-openai-eye"></i>
+                </button>
+                <button class="btn btn-outline-danger" type="button" onclick="clearAiKey('openai')" title="Borrar API key">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+              <div class="form-text ai-key-status d-none" id="ai-openai-status">
+                <i class="bi bi-check-circle text-success"></i> API key configurada
+              </div>
             </div>
             <div class="col-md-4">
               <label class="form-label small">Modelo</label>
@@ -973,8 +983,18 @@
           <div class="row g-2">
             <div class="col-md-8">
               <label class="form-label small">API Key</label>
-              <input type="password" class="form-control form-control-sm" id="ai-anthropic-key"
-                     placeholder="sk-ant-...">
+              <div class="input-group input-group-sm">
+                <input type="password" class="form-control" id="ai-anthropic-key" placeholder="sk-ant-...">
+                <button class="btn btn-outline-secondary" type="button" onclick="toggleAiKey('anthropic')" title="Mostrar/ocultar">
+                  <i class="bi bi-eye" id="ai-anthropic-eye"></i>
+                </button>
+                <button class="btn btn-outline-danger" type="button" onclick="clearAiKey('anthropic')" title="Borrar API key">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+              <div class="form-text ai-key-status d-none" id="ai-anthropic-status">
+                <i class="bi bi-check-circle text-success"></i> API key configurada
+              </div>
             </div>
             <div class="col-md-4">
               <label class="form-label small">Modelo</label>
@@ -996,8 +1016,18 @@
           <div class="row g-2">
             <div class="col-md-8">
               <label class="form-label small">API Key</label>
-              <input type="password" class="form-control form-control-sm" id="ai-google-key"
-                     placeholder="AIza...">
+              <div class="input-group input-group-sm">
+                <input type="password" class="form-control" id="ai-google-key" placeholder="AIza...">
+                <button class="btn btn-outline-secondary" type="button" onclick="toggleAiKey('google')" title="Mostrar/ocultar">
+                  <i class="bi bi-eye" id="ai-google-eye"></i>
+                </button>
+                <button class="btn btn-outline-danger" type="button" onclick="clearAiKey('google')" title="Borrar API key">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+              <div class="form-text ai-key-status d-none" id="ai-google-status">
+                <i class="bi bi-check-circle text-success"></i> API key configurada
+              </div>
             </div>
             <div class="col-md-4">
               <label class="form-label small">Modelo</label>
@@ -1605,6 +1635,27 @@ document.getElementById('form-csr').addEventListener('submit', async e => {
 
 // ===== CONFIGURACIÓN IA ======================================================
 
+function toggleAiKey(name) {
+  const inp = document.getElementById(`ai-${name}-key`);
+  const eye = document.getElementById(`ai-${name}-eye`);
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    eye.className = 'bi bi-eye-slash';
+  } else {
+    inp.type = 'password';
+    eye.className = 'bi bi-eye';
+  }
+}
+
+function clearAiKey(name) {
+  const inp = document.getElementById(`ai-${name}-key`);
+  inp.value = '';
+  inp.type = 'password';
+  document.getElementById(`ai-${name}-eye`).className = 'bi bi-eye';
+  document.getElementById(`ai-${name}-status`).classList.add('d-none');
+  inp.focus();
+}
+
 document.getElementById('tab-ai-btn').addEventListener('shown.bs.tab', async () => {
   try {
     const resp = await fetch('/api/config-ai');
@@ -1618,6 +1669,12 @@ document.getElementById('tab-ai-btn').addEventListener('shown.bs.tab', async () 
       document.getElementById(`ai-${name}-key`).value     = prov.api_key || '';
       document.getElementById(`ai-${name}-model`).value   = prov.model   || '';
       document.getElementById(`ai-${name}-enabled`).checked = !!prov.enabled;
+      const status = document.getElementById(`ai-${name}-status`);
+      if (prov.api_key && prov.api_key.includes('•')) {
+        status.classList.remove('d-none');
+      } else {
+        status.classList.add('d-none');
+      }
     }
   } catch (e) { /* silencioso */ }
 });

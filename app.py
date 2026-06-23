@@ -1289,9 +1289,13 @@ def api_set_ai_config():
     for name in ('openai', 'anthropic', 'google'):
         inc  = incoming_providers.get(name, {})
         cur  = cfg['providers'].setdefault(name, {'api_key': '', 'model': '', 'enabled': False})
-        new_key = (inc.get('api_key') or '').strip()
-        if new_key and '•' not in new_key:
-            cur['api_key'] = new_key
+        new_key = inc.get('api_key')
+        if new_key is not None:
+            new_key = new_key.strip()
+            if new_key == '':
+                cur['api_key'] = ''
+            elif '•' not in new_key:
+                cur['api_key'] = new_key
         if inc.get('model'):
             cur['model'] = inc['model'].strip()
         cur['enabled'] = bool(inc.get('enabled', cur.get('enabled', False)))
