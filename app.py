@@ -1333,7 +1333,15 @@ def _ai_post_with_retry(req_mod, url, max_retries=3, **kwargs):
             wait = (attempt + 1) * 30
             time.sleep(wait)
             continue
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            try:
+                body = resp.json()
+                detail = body.get('error', {}).get('message', '') if isinstance(body.get('error'), dict) else str(body.get('error', ''))
+                if detail:
+                    raise ValueError(f'{resp.status_code} - {detail}')
+            except (ValueError, KeyError):
+                pass
+            resp.raise_for_status()
         return resp
     resp.raise_for_status()
     return resp
