@@ -91,6 +91,13 @@
         <span class="ms-1">5. Correo</span>
       </button>
     </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-ai-btn" data-bs-toggle="tab"
+              data-bs-target="#tab-ai" type="button" role="tab">
+        <i class="bi bi-robot text-purple" style="color:#7c3aed"></i>
+        <span class="ms-1">6. Inteligencia Artificial</span>
+      </button>
+    </li>
   </ul>
 
   <div class="tab-content" id="adminTabsContent">
@@ -905,6 +912,107 @@
       </div><!-- /acordeonEmail -->
     </div><!-- /tab-email -->
 
+    <!-- ===== TAB 6: Inteligencia Artificial ===== -->
+    <div class="tab-pane fade" id="tab-ai" role="tabpanel">
+
+      <h5 class="mb-1"><i class="bi bi-robot" style="color:#7c3aed"></i> Configuración de Inteligencia Artificial</h5>
+      <p class="text-muted small mb-4">
+        Configurá las API keys de los proveedores de IA para habilitar funciones como la
+        extracción automática de datos desde PDFs de constancias.
+      </p>
+
+      <div id="ai-ok"    class="alert alert-success d-none"></div>
+      <div id="ai-error" class="alert alert-danger  d-none"></div>
+
+      <form id="form-ai" novalidate>
+
+        <!-- Proveedor predeterminado -->
+        <div class="mb-4">
+          <label class="form-label fw-semibold">Proveedor predeterminado</label>
+          <select class="form-select" id="ai-default" style="max-width:300px">
+            <option value="">— Ninguno —</option>
+            <option value="openai">OpenAI (GPT)</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="google">Google (Gemini)</option>
+          </select>
+          <div class="form-text">Se usará este proveedor para procesar PDFs con IA.</div>
+        </div>
+
+        <!-- OpenAI -->
+        <div class="border rounded p-3 bg-light mb-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <h6 class="mb-0"><i class="bi bi-stars text-success"></i> OpenAI (GPT)</h6>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="ai-openai-enabled">
+              <label class="form-check-label small" for="ai-openai-enabled">Habilitado</label>
+            </div>
+          </div>
+          <div class="row g-2">
+            <div class="col-md-8">
+              <label class="form-label small">API Key</label>
+              <input type="password" class="form-control form-control-sm" id="ai-openai-key"
+                     placeholder="sk-...">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small">Modelo</label>
+              <input type="text" class="form-control form-control-sm" id="ai-openai-model"
+                     value="gpt-4o">
+            </div>
+          </div>
+        </div>
+
+        <!-- Anthropic -->
+        <div class="border rounded p-3 bg-light mb-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <h6 class="mb-0"><i class="bi bi-chat-dots text-primary"></i> Anthropic (Claude)</h6>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="ai-anthropic-enabled">
+              <label class="form-check-label small" for="ai-anthropic-enabled">Habilitado</label>
+            </div>
+          </div>
+          <div class="row g-2">
+            <div class="col-md-8">
+              <label class="form-label small">API Key</label>
+              <input type="password" class="form-control form-control-sm" id="ai-anthropic-key"
+                     placeholder="sk-ant-...">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small">Modelo</label>
+              <input type="text" class="form-control form-control-sm" id="ai-anthropic-model"
+                     value="claude-sonnet-4-20250514">
+            </div>
+          </div>
+        </div>
+
+        <!-- Google -->
+        <div class="border rounded p-3 bg-light mb-3">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <h6 class="mb-0"><i class="bi bi-google text-danger"></i> Google (Gemini)</h6>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="ai-google-enabled">
+              <label class="form-check-label small" for="ai-google-enabled">Habilitado</label>
+            </div>
+          </div>
+          <div class="row g-2">
+            <div class="col-md-8">
+              <label class="form-label small">API Key</label>
+              <input type="password" class="form-control form-control-sm" id="ai-google-key"
+                     placeholder="AIza...">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small">Modelo</label>
+              <input type="text" class="form-control form-control-sm" id="ai-google-model"
+                     value="gemini-2.0-flash">
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="btn-guardar-ai">
+          <i class="bi bi-floppy"></i> Guardar configuración de IA
+        </button>
+      </form>
+
+    </div><!-- /tab-ai -->
 
   </div><!-- /tab-content -->
 </div><!-- /container -->
@@ -1492,6 +1600,68 @@ document.getElementById('form-csr').addEventListener('submit', async e => {
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="bi bi-key-fill"></i> Generar y descargar ZIP';
+  }
+});
+
+// ===== CONFIGURACIÓN IA ======================================================
+
+document.getElementById('tab-ai-btn').addEventListener('shown.bs.tab', async () => {
+  try {
+    const resp = await fetch('/api/config-ai');
+    const cfg  = await resp.json();
+    const p = cfg.providers || {};
+
+    document.getElementById('ai-default').value = cfg.default_provider || '';
+
+    for (const name of ['openai', 'anthropic', 'google']) {
+      const prov = p[name] || {};
+      document.getElementById(`ai-${name}-key`).value     = prov.api_key || '';
+      document.getElementById(`ai-${name}-model`).value   = prov.model   || '';
+      document.getElementById(`ai-${name}-enabled`).checked = !!prov.enabled;
+    }
+  } catch (e) { /* silencioso */ }
+});
+
+document.getElementById('form-ai').addEventListener('submit', async e => {
+  e.preventDefault();
+  document.getElementById('ai-ok').classList.add('d-none');
+  document.getElementById('ai-error').classList.add('d-none');
+
+  const body = {
+    default_provider: document.getElementById('ai-default').value,
+    providers: {}
+  };
+  for (const name of ['openai', 'anthropic', 'google']) {
+    body.providers[name] = {
+      api_key: document.getElementById(`ai-${name}-key`).value,
+      model:   document.getElementById(`ai-${name}-model`).value.trim(),
+      enabled: document.getElementById(`ai-${name}-enabled`).checked,
+    };
+  }
+
+  const btn = document.getElementById('btn-guardar-ai');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Guardando...';
+
+  try {
+    const resp = await fetch('/api/config-ai', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (data.error) {
+      const el = document.getElementById('ai-error');
+      el.textContent = data.error; el.classList.remove('d-none');
+    } else {
+      const el = document.getElementById('ai-ok');
+      el.textContent = 'Configuración de IA guardada correctamente.';
+      el.classList.remove('d-none');
+    }
+  } catch (err) {
+    const el = document.getElementById('ai-error');
+    el.textContent = 'Error de red: ' + err; el.classList.remove('d-none');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-floppy"></i> Guardar configuración de IA';
   }
 });
 

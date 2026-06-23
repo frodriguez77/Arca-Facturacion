@@ -269,8 +269,33 @@
           <!-- Card: Inscripción Ingresos Brutos -->
           <div class="col-md-6 col-lg-3">
             <div class="ficha-card">
-              <div class="ficha-card-title">
-                <i class="bi bi-bank text-info"></i> Ingresos Brutos
+              <div class="ficha-card-title d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-bank text-info"></i> Ingresos Brutos</span>
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-outline-info py-0 px-1 dropdown-toggle" type="button"
+                          data-bs-toggle="dropdown" title="Cargar constancia PDF">
+                    <i class="bi bi-file-earmark-pdf"></i>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                      <a class="dropdown-item small" href="#" onclick="document.getElementById('ficha-ib-pdf-insc').click(); return false;">
+                        <i class="bi bi-upload text-primary"></i> Subir constancia de inscripción
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item small" href="#" onclick="document.getElementById('ficha-ib-pdf-exen').click(); return false;">
+                        <i class="bi bi-upload text-success"></i> Subir constancia de exención
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+                <input type="file" id="ficha-ib-pdf-insc" accept=".pdf" class="d-none"
+                       onchange="subirIbPdf('inscripcion', this)">
+                <input type="file" id="ficha-ib-pdf-exen" accept=".pdf" class="d-none"
+                       onchange="subirIbPdf('exencion', this)">
+              </div>
+              <div id="ficha-ib-loading" class="d-none text-muted small">
+                <span class="spinner-border spinner-border-sm"></span> Procesando PDF con IA...
               </div>
               <div id="ficha-ib-vacio" class="text-muted small fst-italic">Sin datos de IB importados</div>
               <div id="ficha-ib-inscripcion" class="d-none">
@@ -750,40 +775,8 @@ function abrirFicha(cuit) {
   document.getElementById('ficha-foto-input').value = '';
   _fichaCuitActual = cuit;
 
-  const ib = c.ingresos_brutos || {};
-  const ibVacio = document.getElementById('ficha-ib-vacio');
-  const ibInsc  = document.getElementById('ficha-ib-inscripcion');
-  const ibExen  = document.getElementById('ficha-ib-exencion');
-
-  if (ib.inscripcion) {
-    const i = ib.inscripcion;
-    document.getElementById('ficha-ib-nro').textContent = i.nro_inscripcion || '—';
-    document.getElementById('ficha-ib-regimen').textContent = i.regimen || '—';
-    document.getElementById('ficha-ib-estado').innerHTML = i.estado
-      ? `<span class="badge ${i.estado.toLowerCase() === 'activo' ? 'bg-success' : 'bg-warning text-dark'}">${escHtml(i.estado)}</span>`
-      : '—';
-    document.getElementById('ficha-ib-actividad').textContent = i.actividad || '—';
-    const vig = [i.vigencia_desde, i.vigencia_hasta].filter(Boolean).join(' → ');
-    document.getElementById('ficha-ib-vigencia').textContent = vig || '—';
-    ibInsc.classList.remove('d-none');
-    ibVacio.classList.add('d-none');
-  } else {
-    ibInsc.classList.add('d-none');
-  }
-
-  if (ib.exencion) {
-    const e = ib.exencion;
-    document.getElementById('ficha-ib-ex-encuadre').textContent = e.encuadre || '—';
-    document.getElementById('ficha-ib-ex-hasta').textContent = e.valida_hasta || '—';
-    ibExen.classList.remove('d-none');
-    ibVacio.classList.add('d-none');
-  } else {
-    ibExen.classList.add('d-none');
-  }
-
-  if (!ib.inscripcion && !ib.exencion) {
-    ibVacio.classList.remove('d-none');
-  }
+  _actualizarIbCard(c.ingresos_brutos);
+  document.getElementById('ficha-ib-loading').classList.add('d-none');
 
   if (_fichaChart) { _fichaChart.destroy(); _fichaChart = null; }
 
@@ -1206,6 +1199,84 @@ document.getElementById('btn-importar-compras').addEventListener('click', async 
     btn.innerHTML = '<i class="bi bi-cart-plus"></i> Importar Compras';
   }
 });
+
+// ===== SUBIR PDF CONSTANCIA IB (desde ficha) =================================
+async function subirIbPdf(tipo, inputEl) {
+  const archivo = inputEl.files[0];
+  if (!archivo) return;
+  inputEl.value = '';
+
+  const empresaId = document.getElementById('cli-empresa').value;
+  const cuit = _fichaCuitActual;
+  if (!empresaId || !cuit) { mostrarNotif('Faltan datos de empresa/cliente.', 'danger'); return; }
+
+  const loading = document.getElementById('ficha-ib-loading');
+  loading.classList.remove('d-none');
+
+  try {
+    const fd = new FormData();
+    fd.append('empresa_id', empresaId);
+    fd.append('cuit', cuit);
+    fd.append('tipo', tipo);
+    fd.append('archivo', archivo);
+
+    const resp = await fetch('/api/clientes/ib-pdf', { method: 'POST', body: fd });
+    const data = await resp.json();
+
+    if (data.error) {
+      mostrarNotif(data.error, 'danger');
+    } else {
+      mostrarNotif(`Constancia de ${tipo === 'inscripcion' ? 'inscripción' : 'exención'} procesada correctamente.`, 'success');
+      const c = _clientesData.find(x => x.cuit === cuit);
+      if (c) {
+        if (!c.ingresos_brutos) c.ingresos_brutos = {};
+        c.ingresos_brutos[tipo] = data.datos;
+      }
+      _actualizarIbCard(c ? c.ingresos_brutos : {});
+    }
+  } catch (err) {
+    mostrarNotif('Error de red: ' + err, 'danger');
+  } finally {
+    loading.classList.add('d-none');
+  }
+}
+
+function _actualizarIbCard(ib) {
+  ib = ib || {};
+  const ibVacio = document.getElementById('ficha-ib-vacio');
+  const ibInsc  = document.getElementById('ficha-ib-inscripcion');
+  const ibExen  = document.getElementById('ficha-ib-exencion');
+
+  if (ib.inscripcion) {
+    const i = ib.inscripcion;
+    document.getElementById('ficha-ib-nro').textContent = i.nro_inscripcion || '—';
+    document.getElementById('ficha-ib-regimen').textContent = i.regimen || '—';
+    document.getElementById('ficha-ib-estado').innerHTML = i.estado
+      ? `<span class="badge ${i.estado.toLowerCase() === 'activo' ? 'bg-success' : 'bg-warning text-dark'}">${escHtml(i.estado)}</span>`
+      : '—';
+    document.getElementById('ficha-ib-actividad').textContent = i.actividad || '—';
+    const vig = [i.vigencia_desde, i.vigencia_hasta].filter(Boolean).join(' → ');
+    document.getElementById('ficha-ib-vigencia').textContent = vig || '—';
+    ibInsc.classList.remove('d-none');
+    ibVacio.classList.add('d-none');
+  } else {
+    ibInsc.classList.add('d-none');
+  }
+
+  if (ib.exencion) {
+    const e = ib.exencion;
+    document.getElementById('ficha-ib-ex-encuadre').textContent = e.encuadre || '—';
+    document.getElementById('ficha-ib-ex-hasta').textContent = e.valida_hasta || '—';
+    ibExen.classList.remove('d-none');
+    ibVacio.classList.add('d-none');
+  } else {
+    ibExen.classList.add('d-none');
+  }
+
+  if (!ib.inscripcion && !ib.exencion) {
+    ibVacio.classList.remove('d-none');
+  }
+}
 
 // ===== IMPORTAR INGRESOS BRUTOS ==============================================
 document.getElementById('btn-importar-ib').addEventListener('click', async () => {

@@ -1246,6 +1246,216 @@ def api_set_email_config():
     return jsonify({'ok': True})
 
 
+# ---------- AI config --------------------------------------------------------
+
+AI_CONFIG_PATH = os.path.join(BASE, 'ai_config.json')
+
+def _load_ai_config() -> dict:
+    if os.path.exists(AI_CONFIG_PATH):
+        with open(AI_CONFIG_PATH, encoding='utf-8') as f:
+            return json.load(f)
+    return {
+        'providers': {
+            'openai':    {'api_key': '', 'model': 'gpt-4o',                    'enabled': False},
+            'anthropic': {'api_key': '', 'model': 'claude-sonnet-4-20250514', 'enabled': False},
+            'google':    {'api_key': '', 'model': 'gemini-2.0-flash',          'enabled': False},
+        },
+        'default_provider': ''
+    }
+
+def _save_ai_config(cfg: dict):
+    with open(AI_CONFIG_PATH, 'w', encoding='utf-8') as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+
+
+@app.route('/api/config-ai', methods=['GET'])
+@admin_required
+def api_get_ai_config():
+    cfg  = _load_ai_config()
+    safe = json.loads(json.dumps(cfg))          # deep copy
+    for prov in safe.get('providers', {}).values():
+        if prov.get('api_key'):
+            prov['api_key'] = '••••••••'
+    return jsonify(safe)
+
+
+@app.route('/api/config-ai', methods=['POST'])
+@admin_required
+def api_set_ai_config():
+    data = request.get_json(force=True)
+    cfg  = _load_ai_config()
+
+    incoming_providers = data.get('providers', {})
+    for name in ('openai', 'anthropic', 'google'):
+        inc  = incoming_providers.get(name, {})
+        cur  = cfg['providers'].setdefault(name, {'api_key': '', 'model': '', 'enabled': False})
+        new_key = (inc.get('api_key') or '').strip()
+        if new_key and '•' not in new_key:
+            cur['api_key'] = new_key
+        if inc.get('model'):
+            cur['model'] = inc['model'].strip()
+        cur['enabled'] = bool(inc.get('enabled', cur.get('enabled', False)))
+
+    cfg['default_provider'] = (data.get('default_provider') or '').strip()
+    _save_ai_config(cfg)
+    return jsonify({'ok': True})
+
+
+# ---------- AI helpers -------------------------------------------------------
+
+def _extract_pdf_text(file_bytes: bytes) -> str:
+    text = ''
+    try:
+        import PyPDF2
+        reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+        for page in reader.pages:
+            text += (page.extract_text() or '') + '\n'
+    except ImportError:
+        try:
+            import pdfplumber
+            with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+                for page in pdf.pages:
+                    text += (page.extract_text() or '') + '\n'
+        except ImportError:
+            pass
+    return text.strip()
+
+
+def _call_ai_extract(text: str, tipo: str) -> dict:
+    """Llama al proveedor AI configurado y devuelve un dict con los datos extraídos."""
+    import requests as _req
+
+    cfg = _load_ai_config()
+    provider_name = cfg.get('default_provider', '')
+    if not provider_name:
+        raise ValueError('No hay proveedor de IA configurado como predeterminado.')
+
+    prov = cfg.get('providers', {}).get(provider_name)
+    if not prov or not prov.get('enabled'):
+        raise ValueError(f'El proveedor "{provider_name}" no está habilitado.')
+    api_key = prov.get('api_key', '')
+    if not api_key:
+        raise ValueError(f'El proveedor "{provider_name}" no tiene API key configurada.')
+    model = prov.get('model', '')
+
+    if tipo == 'inscripcion':
+        campos = ('nro_inscripcion, regimen, categoria, estado, periodo_desde, '
+                  'domicilio, cod_actividad, actividad, fecha_inicio_actividad, '
+                  'nro_constancia, datos_actualizados, vigencia_desde, vigencia_hasta, '
+                  'organismo, provincia')
+        tipo_label = 'inscripción'
+    else:
+        campos = ('nro_cuenta, cod_actividad, actividad, fecha_inicio_actividad, '
+                  'encuadre, nro_constancia, fecha_tramite, valida_hasta, '
+                  'organismo, provincia')
+        tipo_label = 'exención'
+
+    prompt = (
+        f'Extraés datos de una constancia de {tipo_label} de Ingresos Brutos de Argentina.\n'
+        f'Texto del documento:\n---\n{text}\n---\n'
+        f'Devolvé un JSON con estos campos exactos: {campos}\n'
+        'Solo JSON, sin explicaciones.'
+    )
+
+    # --- llamada al proveedor ---
+    if provider_name == 'openai':
+        resp = _req.post(
+            'https://api.openai.com/v1/chat/completions',
+            headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+            json={
+                'model': model,
+                'messages': [{'role': 'user', 'content': prompt}],
+                'response_format': {'type': 'json_object'},
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        result = resp.json()['choices'][0]['message']['content']
+
+    elif provider_name == 'anthropic':
+        resp = _req.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={
+                'x-api-key': api_key,
+                'anthropic-version': '2023-06-01',
+                'Content-Type': 'application/json',
+            },
+            json={
+                'model': model,
+                'max_tokens': 2048,
+                'messages': [{'role': 'user', 'content': prompt}],
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        result = resp.json()['content'][0]['text']
+
+    elif provider_name == 'google':
+        resp = _req.post(
+            f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}',
+            headers={'Content-Type': 'application/json'},
+            json={
+                'contents': [{'parts': [{'text': prompt}]}],
+                'generationConfig': {'responseMimeType': 'application/json'},
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        result = resp.json()['candidates'][0]['content']['parts'][0]['text']
+
+    else:
+        raise ValueError(f'Proveedor desconocido: {provider_name}')
+
+    # Parsear JSON de la respuesta (puede venir envuelto en ```json ... ```)
+    result = result.strip()
+    if result.startswith('```'):
+        result = result.split('\n', 1)[-1].rsplit('```', 1)[0].strip()
+    return json.loads(result)
+
+
+# ---------- IB PDF upload + AI extraction ------------------------------------
+
+@app.route('/api/clientes/ib-pdf', methods=['POST'])
+@login_required
+def api_clientes_ib_pdf():
+    user = _get_current_user()
+    empresa_id = request.form.get('empresa_id', '').strip()
+    cuit       = request.form.get('cuit', '').strip()
+    tipo       = request.form.get('tipo', '').strip()          # inscripcion | exencion
+
+    if not empresa_id or not cuit or tipo not in ('inscripcion', 'exencion'):
+        return jsonify({'error': 'Faltan parámetros (empresa_id, cuit, tipo).'}), 400
+    if not _user_can_access(user, empresa_id):
+        return jsonify({'error': 'Sin acceso a esta empresa.'}), 403
+
+    archivo = request.files.get('archivo')
+    if not archivo or not archivo.filename.lower().endswith('.pdf'):
+        return jsonify({'error': 'Se requiere un archivo PDF.'}), 400
+
+    file_bytes = archivo.read()
+    text = _extract_pdf_text(file_bytes)
+    if not text:
+        return jsonify({'error': 'No se pudo extraer texto del PDF.'}), 400
+
+    try:
+        datos = _call_ai_extract(text, tipo)
+    except Exception as e:
+        return jsonify({'error': f'Error al procesar con IA: {e}'}), 500
+
+    # Guardar en el cliente
+    clientes = _load_clientes(empresa_id)
+    cliente  = clientes.get(cuit)
+    if not cliente:
+        return jsonify({'error': f'Cliente con CUIT {cuit} no encontrado.'}), 404
+
+    ib = cliente.setdefault('ingresos_brutos', {})
+    ib[tipo] = datos
+    clientes[cuit] = cliente
+    _save_clientes(empresa_id, clientes)
+
+    return jsonify({'ok': True, 'datos': datos})
+
+
 @app.route('/api/enviar-factura', methods=['POST'])
 @login_required
 def api_enviar_factura():
