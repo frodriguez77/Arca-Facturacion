@@ -1325,6 +1325,20 @@ def _extract_pdf_text(file_bytes: bytes) -> str:
     return text.strip()
 
 
+def _ai_post_with_retry(req_mod, url, max_retries=3, **kwargs):
+    import time
+    for attempt in range(max_retries + 1):
+        resp = req_mod.post(url, **kwargs)
+        if resp.status_code == 429 and attempt < max_retries:
+            wait = (attempt + 1) * 15
+            time.sleep(wait)
+            continue
+        resp.raise_for_status()
+        return resp
+    resp.raise_for_status()
+    return resp
+
+
 def _call_ai_extract(text: str, tipo: str, file_bytes: bytes = None) -> dict:
     import requests as _req
     import base64
@@ -1371,7 +1385,8 @@ def _call_ai_extract(text: str, tipo: str, file_bytes: bytes = None) -> dict:
                 'a Google (Gemini) o Anthropic (Claude) en Admin → Inteligencia Artificial.'
             )
         content = instruccion + f'\n\nTexto del documento:\n---\n{text}\n---'
-        resp = _req.post(
+        resp = _ai_post_with_retry(
+            _req,
             'https://api.openai.com/v1/chat/completions',
             headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
             json={
@@ -1381,7 +1396,6 @@ def _call_ai_extract(text: str, tipo: str, file_bytes: bytes = None) -> dict:
             },
             timeout=90,
         )
-        resp.raise_for_status()
         result = resp.json()['choices'][0]['message']['content']
 
     elif provider_name == 'anthropic':
@@ -1396,7 +1410,8 @@ def _call_ai_extract(text: str, tipo: str, file_bytes: bytes = None) -> dict:
             ]
         else:
             content = instruccion + f'\n\nTexto del documento:\n---\n{text}\n---'
-        resp = _req.post(
+        resp = _ai_post_with_retry(
+            _req,
             'https://api.anthropic.com/v1/messages',
             headers={
                 'x-api-key': api_key,
@@ -1410,7 +1425,6 @@ def _call_ai_extract(text: str, tipo: str, file_bytes: bytes = None) -> dict:
             },
             timeout=90,
         )
-        resp.raise_for_status()
         result = resp.json()['content'][0]['text']
 
     elif provider_name == 'google':
@@ -1421,7 +1435,8 @@ def _call_ai_extract(text: str, tipo: str, file_bytes: bytes = None) -> dict:
             ]
         else:
             parts = [{'text': instruccion + f'\n\nTexto del documento:\n---\n{text}\n---'}]
-        resp = _req.post(
+        resp = _ai_post_with_retry(
+            _req,
             f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}',
             headers={'Content-Type': 'application/json'},
             json={
@@ -1430,7 +1445,6 @@ def _call_ai_extract(text: str, tipo: str, file_bytes: bytes = None) -> dict:
             },
             timeout=90,
         )
-        resp.raise_for_status()
         result = resp.json()['candidates'][0]['content']['parts'][0]['text']
 
     else:
