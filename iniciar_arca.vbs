@@ -16,9 +16,19 @@ localVer  = GetLocalVersion()
 remoteVer = GetRemoteVersion()
 
 If remoteVer <> "" And remoteVer <> localVer Then
-    ' Actualizar automaticamente sin preguntar
-    objShell.Run "powershell -ExecutionPolicy Bypass -File """ & appDir & "\actualizar.ps1"" -AutoReiniciar", 1, True
-    WScript.Quit
+    ' Verificar que no estemos en un loop post-actualizacion
+    Dim flagFile : flagFile = appDir & "\update_done.flag"
+    If objFSO.FileExists(flagFile) Then
+        ' Ya se actualizo, borrar flag y continuar normalmente
+        objFSO.DeleteFile flagFile, True
+    Else
+        ' Marcar que vamos a actualizar y lanzar el actualizador
+        Dim ts2 : Set ts2 = objFSO.CreateTextFile(flagFile, True)
+        ts2.Write "updated"
+        ts2.Close
+        objShell.Run "powershell -ExecutionPolicy Bypass -File """ & appDir & "\actualizar.ps1"" -AutoReiniciar", 1, True
+        WScript.Quit
+    End If
 End If
 
 ' --- Preparar arca.exe (copia de pythonw.exe en la carpeta de Python) ---
