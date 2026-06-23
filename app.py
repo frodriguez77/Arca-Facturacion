@@ -1416,6 +1416,7 @@ def _call_ai_extract(text: str, tipo: str, file_bytes: bytes = None) -> dict:
             headers={
                 'x-api-key': api_key,
                 'anthropic-version': '2023-06-01',
+                'anthropic-beta': 'pdfs-2024-09-25',
                 'Content-Type': 'application/json',
             },
             json={
