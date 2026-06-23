@@ -1365,14 +1365,12 @@ def _call_ai_extract(text: str, tipo: str, file_bytes: bytes = None) -> dict:
 
     if provider_name == 'openai':
         if use_vision:
-            content = [
-                {'type': 'text', 'text': instruccion},
-                {'type': 'image_url', 'image_url': {
-                    'url': f'data:application/pdf;base64,{pdf_b64}'
-                }}
-            ]
-        else:
-            content = instruccion + f'\n\nTexto del documento:\n---\n{text}\n---'
+            raise ValueError(
+                'OpenAI no soporta PDFs directamente. '
+                'Instalá PyPDF2 (pip install PyPDF2) o cambiá el proveedor '
+                'a Google (Gemini) o Anthropic (Claude) en Admin → Inteligencia Artificial.'
+            )
+        content = instruccion + f'\n\nTexto del documento:\n---\n{text}\n---'
         resp = _req.post(
             'https://api.openai.com/v1/chat/completions',
             headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
