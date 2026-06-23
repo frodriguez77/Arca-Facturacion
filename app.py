@@ -1305,6 +1305,67 @@ def api_set_ai_config():
     return jsonify({'ok': True})
 
 
+@app.route('/api/config-ai/test', methods=['POST'])
+@admin_required
+def api_test_ai():
+    import requests as _req
+    data = request.get_json(force=True)
+    provider = (data.get('provider') or '').strip()
+    cfg = _load_ai_config()
+    prov = cfg.get('providers', {}).get(provider, {})
+    api_key = prov.get('api_key', '')
+    model = prov.get('model', '')
+    if not api_key:
+        return jsonify({'error': 'No hay API key configurada para este proveedor.'}), 400
+    if not model:
+        return jsonify({'error': 'No hay modelo configurado.'}), 400
+
+    prompt = 'Respondé solamente con la palabra: OK'
+    try:
+        if provider == 'openai':
+            resp = _req.post('https://api.openai.com/v1/chat/completions',
+                headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+                json={'model': model, 'messages': [{'role': 'user', 'content': prompt}], 'max_tokens': 10},
+                timeout=30)
+        elif provider == 'anthropic':
+            resp = _req.post('https://api.anthropic.com/v1/messages',
+                headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json'},
+                json={'model': model, 'max_tokens': 10, 'messages': [{'role': 'user', 'content': prompt}]},
+                timeout=30)
+        elif provider == 'google':
+            resp = _req.post(
+                f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}',
+                headers={'Content-Type': 'application/json'},
+                json={'contents': [{'parts': [{'text': prompt}]}]},
+                timeout=30)
+        else:
+            return jsonify({'error': f'Proveedor desconocido: {provider}'}), 400
+
+        if resp.status_code >= 400:
+            detail = ''
+            try:
+                body = resp.json()
+                err = body.get('error', {})
+                detail = err.get('message', '') if isinstance(err, dict) else str(err)
+            except Exception:
+                detail = resp.text[:300]
+            # Sanitizar API key del mensaje
+            if api_key and api_key in detail:
+                detail = detail.replace(api_key, '***')
+            return jsonify({'error': f'Error {resp.status_code}: {detail or resp.reason}'}), 400
+
+        return jsonify({'ok': True, 'message': f'Conexión exitosa con {provider} (modelo: {model})'})
+    except _req.exceptions.ConnectionError:
+        return jsonify({'error': 'No se pudo conectar. Verificá tu conexión a internet.'}), 500
+    except _req.exceptions.Timeout:
+        return jsonify({'error': 'Tiempo de espera agotado. Intentá de nuevo.'}), 500
+    except Exception as e:
+        msg = str(e)
+        if api_key and api_key in msg:
+            msg = msg.replace(api_key, '***')
+        return jsonify({'error': f'Error: {msg}'}), 500
+
+
 # ---------- AI helpers -------------------------------------------------------
 
 def _extract_pdf_text(file_bytes: bytes) -> str:
