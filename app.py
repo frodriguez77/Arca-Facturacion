@@ -1314,20 +1314,20 @@ def _extract_pdf_text(file_bytes: bytes) -> str:
         reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
         for page in reader.pages:
             text += (page.extract_text() or '') + '\n'
-    except ImportError:
+    except (ImportError, Exception):
         try:
             import pdfplumber
             with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
                 for page in pdf.pages:
                     text += (page.extract_text() or '') + '\n'
-        except ImportError:
+        except (ImportError, Exception):
             pass
     return text.strip()
 
 
-def _call_ai_extract(text: str, tipo: str) -> dict:
-    """Llama al proveedor AI configurado y devuelve un dict con los datos extraídos."""
+def _call_ai_extract(text: str, tipo: str, file_bytes: bytes = None) -> dict:
     import requests as _req
+    import base64
 
     cfg = _load_ai_config()
     provider_name = cfg.get('default_provider', '')
@@ -1354,29 +1354,50 @@ def _call_ai_extract(text: str, tipo: str) -> dict:
                   'organismo, provincia')
         tipo_label = 'exención'
 
-    prompt = (
-        f'Extraés datos de una constancia de {tipo_label} de Ingresos Brutos de Argentina.\n'
-        f'Texto del documento:\n---\n{text}\n---\n'
-        f'Devolvé un JSON con estos campos exactos: {campos}\n'
-        'Solo JSON, sin explicaciones.'
+    instruccion = (
+        f'Extraé los datos de esta constancia de {tipo_label} de Ingresos Brutos de Argentina. '
+        f'Devolvé SOLO un JSON con estos campos exactos: {campos}. '
+        'Sin explicaciones, solo el JSON.'
     )
 
-    # --- llamada al proveedor ---
+    use_vision = not text and file_bytes is not None
+    pdf_b64 = base64.b64encode(file_bytes).decode() if use_vision else None
+
     if provider_name == 'openai':
+        if use_vision:
+            content = [
+                {'type': 'text', 'text': instruccion},
+                {'type': 'image_url', 'image_url': {
+                    'url': f'data:application/pdf;base64,{pdf_b64}'
+                }}
+            ]
+        else:
+            content = instruccion + f'\n\nTexto del documento:\n---\n{text}\n---'
         resp = _req.post(
             'https://api.openai.com/v1/chat/completions',
             headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
             json={
                 'model': model,
-                'messages': [{'role': 'user', 'content': prompt}],
+                'messages': [{'role': 'user', 'content': content}],
                 'response_format': {'type': 'json_object'},
             },
-            timeout=60,
+            timeout=90,
         )
         resp.raise_for_status()
         result = resp.json()['choices'][0]['message']['content']
 
     elif provider_name == 'anthropic':
+        if use_vision:
+            content = [
+                {'type': 'document', 'source': {
+                    'type': 'base64',
+                    'media_type': 'application/pdf',
+                    'data': pdf_b64,
+                }},
+                {'type': 'text', 'text': instruccion},
+            ]
+        else:
+            content = instruccion + f'\n\nTexto del documento:\n---\n{text}\n---'
         resp = _req.post(
             'https://api.anthropic.com/v1/messages',
             headers={
@@ -1387,22 +1408,29 @@ def _call_ai_extract(text: str, tipo: str) -> dict:
             json={
                 'model': model,
                 'max_tokens': 2048,
-                'messages': [{'role': 'user', 'content': prompt}],
+                'messages': [{'role': 'user', 'content': content}],
             },
-            timeout=60,
+            timeout=90,
         )
         resp.raise_for_status()
         result = resp.json()['content'][0]['text']
 
     elif provider_name == 'google':
+        if use_vision:
+            parts = [
+                {'inline_data': {'mime_type': 'application/pdf', 'data': pdf_b64}},
+                {'text': instruccion},
+            ]
+        else:
+            parts = [{'text': instruccion + f'\n\nTexto del documento:\n---\n{text}\n---'}]
         resp = _req.post(
             f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}',
             headers={'Content-Type': 'application/json'},
             json={
-                'contents': [{'parts': [{'text': prompt}]}],
+                'contents': [{'parts': parts}],
                 'generationConfig': {'responseMimeType': 'application/json'},
             },
-            timeout=60,
+            timeout=90,
         )
         resp.raise_for_status()
         result = resp.json()['candidates'][0]['content']['parts'][0]['text']
@@ -1410,7 +1438,6 @@ def _call_ai_extract(text: str, tipo: str) -> dict:
     else:
         raise ValueError(f'Proveedor desconocido: {provider_name}')
 
-    # Parsear JSON de la respuesta (puede venir envuelto en ```json ... ```)
     result = result.strip()
     if result.startswith('```'):
         result = result.split('\n', 1)[-1].rsplit('```', 1)[0].strip()
@@ -1438,11 +1465,9 @@ def api_clientes_ib_pdf():
 
     file_bytes = archivo.read()
     text = _extract_pdf_text(file_bytes)
-    if not text:
-        return jsonify({'error': 'No se pudo extraer texto del PDF.'}), 400
 
     try:
-        datos = _call_ai_extract(text, tipo)
+        datos = _call_ai_extract(text, tipo, file_bytes=file_bytes)
     except Exception as e:
         return jsonify({'error': f'Error al procesar con IA: {e}'}), 500
 
