@@ -969,6 +969,12 @@
                      value="gpt-4o">
             </div>
           </div>
+          <div class="mt-2 d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-outline-primary btn-sm" onclick="testAiProvider('openai')">
+              <i class="bi bi-plug"></i> Probar conexión
+            </button>
+            <span class="small d-none" id="ai-openai-test-result"></span>
+          </div>
         </div>
 
         <!-- Anthropic -->
@@ -1002,6 +1008,12 @@
                      value="claude-3-haiku-20240307">
             </div>
           </div>
+          <div class="mt-2 d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-outline-primary btn-sm" onclick="testAiProvider('anthropic')">
+              <i class="bi bi-plug"></i> Probar conexión
+            </button>
+            <span class="small d-none" id="ai-anthropic-test-result"></span>
+          </div>
         </div>
 
         <!-- Google -->
@@ -1034,6 +1046,12 @@
               <input type="text" class="form-control form-control-sm" id="ai-google-model"
                      value="gemini-1.5-flash">
             </div>
+          </div>
+          <div class="mt-2 d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-outline-primary btn-sm" onclick="testAiProvider('google')">
+              <i class="bi bi-plug"></i> Probar conexión
+            </button>
+            <span class="small d-none" id="ai-google-test-result"></span>
           </div>
         </div>
 
@@ -1654,6 +1672,36 @@ function clearAiKey(name) {
   document.getElementById(`ai-${name}-eye`).className = 'bi bi-eye';
   document.getElementById(`ai-${name}-status`).classList.add('d-none');
   inp.focus();
+}
+
+async function testAiProvider(name) {
+  const btn = event.target.closest('button');
+  const result = document.getElementById(`ai-${name}-test-result`);
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Probando...';
+  result.classList.add('d-none');
+  try {
+    const resp = await fetch('/api/config-ai/test', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({provider: name}),
+    });
+    const data = await resp.json();
+    result.classList.remove('d-none');
+    if (data.ok) {
+      result.className = 'small text-success';
+      result.innerHTML = '<i class="bi bi-check-circle-fill"></i> ' + data.message;
+    } else {
+      result.className = 'small text-danger';
+      result.innerHTML = '<i class="bi bi-x-circle-fill"></i> ' + (data.error || 'Error desconocido');
+    }
+  } catch (err) {
+    result.classList.remove('d-none');
+    result.className = 'small text-danger';
+    result.innerHTML = '<i class="bi bi-x-circle-fill"></i> Error de red';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-plug"></i> Probar conexión';
+  }
 }
 
 document.getElementById('tab-ai-btn').addEventListener('shown.bs.tab', async () => {
