@@ -1571,6 +1571,129 @@ def api_clientes_foto_upload():
     return jsonify({'ok': True, 'foto_url': f'/static/clientes/{empresa_id}/{cuit}{ext}'})
 
 
+@app.route('/api/clientes/importar-ib', methods=['POST'])
+@admin_required
+def api_clientes_importar_ib():
+    empresa_id = (request.form.get('empresa_id') or '').strip()
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 400
+
+    f = request.files.get('archivo')
+    if not f or not f.filename:
+        return jsonify({'error': 'No se recibió ningún archivo'}), 400
+    if not f.filename.lower().endswith(('.xlsx', '.xls')):
+        return jsonify({'error': 'El archivo debe ser .xlsx'}), 400
+
+    try:
+        wb = load_workbook(f)
+        clientes = _load_clientes(empresa_id)
+        actualizados = 0
+
+        for ws in wb.worksheets:
+            title_val = str(ws.cell(1, 1).value or '').upper()
+            headers = [str(ws.cell(2, c).value or '').strip() for c in range(1, ws.max_column + 1)]
+
+            cuit_idx = next((i for i, h in enumerate(headers) if 'CUIT' in h.upper()), None)
+            if cuit_idx is None:
+                continue
+
+            is_exencion = 'EXEN' in title_val
+
+            for r in range(3, ws.max_row + 1):
+                raw_cuit = ws.cell(r, cuit_idx + 1).value
+                if not raw_cuit:
+                    continue
+                cuit_str = str(raw_cuit).replace('-', '').strip()
+                if not cuit_str or cuit_str == 'None':
+                    continue
+
+                if cuit_str not in clientes:
+                    nombre_idx = next((i for i, h in enumerate(headers) if 'Nombre' in h or 'Razón' in h or 'Razon' in h or 'NOMBRE' in h.upper()), None)
+                    nombre = str(ws.cell(r, nombre_idx + 1).value or '').strip() if nombre_idx is not None else ''
+                    clientes[cuit_str] = {
+                        'cuit': cuit_str, 'nombre': nombre,
+                        'codigo': '', 'domicilio': '', 'estado': '',
+                    }
+
+                ib = clientes[cuit_str].get('ingresos_brutos', {})
+
+                if is_exencion:
+                    ex = {}
+                    for i, h in enumerate(headers):
+                        val = ws.cell(r, i + 1).value
+                        if val is None:
+                            continue
+                        hl = h.lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
+                        if 'cuenta' in hl:
+                            ex['nro_cuenta'] = str(val).strip()
+                        elif 'actividad' in hl and 'descripci' in hl:
+                            ex['actividad'] = str(val).strip()
+                        elif 'actividad' in hl and 'codigo' in hl:
+                            ex['cod_actividad'] = str(val).strip()
+                        elif 'actividad' in hl and 'fecha' in hl:
+                            ex['fecha_inicio_actividad'] = str(val).strip()
+                        elif 'encuadre' in hl or 'normativo' in hl:
+                            ex['encuadre'] = str(val).strip()
+                        elif 'valida' in hl or ('vigencia' in hl and 'hasta' in hl):
+                            ex['valida_hasta'] = str(val).strip()
+                        elif 'constancia' in hl and h.startswith('N'):
+                            ex['nro_constancia'] = str(val).strip()
+                        elif 'tramite' in hl:
+                            ex['fecha_tramite'] = str(val).strip()
+                        elif 'organismo' in hl:
+                            ex['organismo'] = str(val).strip()
+                        elif 'provincia' in hl:
+                            ex['provincia'] = str(val).strip()
+                    ib['exencion'] = ex
+                else:
+                    insc = {}
+                    for i, h in enumerate(headers):
+                        val = ws.cell(r, i + 1).value
+                        if val is None:
+                            continue
+                        hl = h.lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
+                        if 'inscripcion' in hl:
+                            insc['nro_inscripcion'] = str(val).strip()
+                        elif 'regimen' in hl:
+                            insc['regimen'] = str(val).strip()
+                        elif 'categori' in hl:
+                            insc['categoria'] = str(val).strip()
+                        elif 'estado' in hl:
+                            insc['estado'] = str(val).strip()
+                        elif 'periodo' in hl and 'desde' in hl:
+                            insc['periodo_desde'] = str(val).strip()
+                        elif 'domicilio' in hl:
+                            insc['domicilio'] = str(val).strip()
+                        elif 'actividad' in hl and 'descripcion' in hl:
+                            insc['actividad'] = str(val).strip()
+                        elif 'actividad' in hl and 'codigo' in hl:
+                            insc['cod_actividad'] = str(val).strip()
+                        elif 'actividad' in hl and 'fecha' in hl:
+                            insc['fecha_inicio_actividad'] = str(val).strip()
+                        elif 'constancia' in hl:
+                            insc['nro_constancia'] = str(val).strip()
+                        elif 'actualizado' in hl:
+                            insc['datos_actualizados'] = str(val).strip()
+                        elif 'vigencia' in hl and 'desde' in hl:
+                            insc['vigencia_desde'] = str(val).strip()
+                        elif 'vigencia' in hl and 'hasta' in hl:
+                            insc['vigencia_hasta'] = str(val).strip()
+                        elif 'organismo' in hl:
+                            insc['organismo'] = str(val).strip()
+                        elif 'provincia' in hl:
+                            insc['provincia'] = str(val).strip()
+                    ib['inscripcion'] = insc
+
+                clientes[cuit_str]['ingresos_brutos'] = ib
+                actualizados += 1
+
+        _save_clientes(empresa_id, clientes)
+        return jsonify({'ok': True, 'actualizados': actualizados, 'total': len(clientes)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/clientes/importar-compras', methods=['POST'])
 @admin_required
 def api_clientes_importar_compras():

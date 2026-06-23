@@ -115,6 +115,13 @@
         <span class="ms-1">Importar Compras AFIP</span>
       </button>
     </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" data-bs-toggle="tab"
+              data-bs-target="#tab-ib" type="button" role="tab">
+        <i class="bi bi-bank text-info"></i>
+        <span class="ms-1">Importar Ingresos Brutos</span>
+      </button>
+    </li>
   </ul>
 
   <div class="tab-content">
@@ -247,7 +254,7 @@
         <div class="row g-3 mb-4">
 
           <!-- Card: Inscripción ARCA -->
-          <div class="col-md-4">
+          <div class="col-md-6 col-lg-3">
             <div class="ficha-card">
               <div class="ficha-card-title">
                 <i class="bi bi-shield-check text-primary"></i> Inscripción ARCA
@@ -259,8 +266,31 @@
             </div>
           </div>
 
+          <!-- Card: Inscripción Ingresos Brutos -->
+          <div class="col-md-6 col-lg-3">
+            <div class="ficha-card">
+              <div class="ficha-card-title">
+                <i class="bi bi-bank text-info"></i> Ingresos Brutos
+              </div>
+              <div id="ficha-ib-vacio" class="text-muted small fst-italic">Sin datos de IB importados</div>
+              <div id="ficha-ib-inscripcion" class="d-none">
+                <div class="ficha-dato"><span class="label">Nº Inscripción:</span> <strong id="ficha-ib-nro"></strong></div>
+                <div class="ficha-dato"><span class="label">Régimen:</span> <span id="ficha-ib-regimen"></span></div>
+                <div class="ficha-dato"><span class="label">Estado:</span> <span id="ficha-ib-estado"></span></div>
+                <div class="ficha-dato"><span class="label">Actividad:</span> <span id="ficha-ib-actividad"></span></div>
+                <div class="ficha-dato"><span class="label">Vigencia:</span> <span id="ficha-ib-vigencia"></span></div>
+              </div>
+              <div id="ficha-ib-exencion" class="d-none mt-2">
+                <hr class="my-1 opacity-25">
+                <div class="ficha-dato"><span class="label">Exención:</span> <span class="badge bg-success" id="ficha-ib-ex-badge">Exento</span></div>
+                <div class="ficha-dato"><span class="label">Encuadre:</span> <span id="ficha-ib-ex-encuadre" class="small"></span></div>
+                <div class="ficha-dato"><span class="label">Válida hasta:</span> <span id="ficha-ib-ex-hasta"></span></div>
+              </div>
+            </div>
+          </div>
+
           <!-- Card: Resumen Ventas -->
-          <div class="col-md-4">
+          <div class="col-md-6 col-lg-3">
             <div class="ficha-card">
               <div class="ficha-card-title">
                 <i class="bi bi-arrow-up-right text-success"></i> Resumen Ventas
@@ -285,7 +315,7 @@
           </div>
 
           <!-- Card: Resumen Compras -->
-          <div class="col-md-4">
+          <div class="col-md-6 col-lg-3">
             <div class="ficha-card">
               <div class="ficha-card-title">
                 <i class="bi bi-arrow-down-left text-danger"></i> Resumen Compras
@@ -464,6 +494,42 @@
       <div id="comp-resultado" class="d-none"></div>
 
     </div><!-- /tab-compras -->
+
+    <!-- ===== TAB: Importar Ingresos Brutos ===== -->
+    <div class="tab-pane fade" id="tab-ib" role="tabpanel">
+
+      <h5 class="mb-1"><i class="bi bi-bank text-info"></i> Importar constancias de Ingresos Brutos</h5>
+      <p class="text-muted small mb-4">
+        Subí el Excel con las constancias de <strong>Inscripción</strong> y/o <strong>Exención</strong> de Ingresos Brutos.
+        El archivo puede tener dos pestañas: una de inscripción y otra de exención. Los datos se vinculan
+        al cliente por CUIT y se muestran en la ficha.
+      </p>
+
+      <div class="row g-3 mb-4" style="max-width:560px">
+        <div class="col-12">
+          <label class="form-label fw-semibold">Empresa <span class="text-danger">*</span></label>
+          <select class="form-select" id="ib-empresa">
+            <option value="">— Seleccioná una empresa —</option>
+            {% for e in empresas %}
+            <option value="{{ e.id }}">{{ e.nombre }} ({{ e.cuit }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Archivo Excel de constancias <span class="text-danger">*</span></label>
+          <input type="file" class="form-control" id="ib-archivo" accept=".xlsx,.xls">
+          <div class="form-text">Excel con pestañas "Constancias de Inscripción" y/o "Constancias de Exención"</div>
+        </div>
+        <div class="col-12">
+          <button type="button" class="btn btn-info text-white" id="btn-importar-ib">
+            <i class="bi bi-bank"></i> Importar Ingresos Brutos
+          </button>
+        </div>
+      </div>
+
+      <div id="ib-resultado" class="d-none"></div>
+
+    </div><!-- /tab-ib -->
 
   </div><!-- /tab-content -->
 </div><!-- /container -->
@@ -683,6 +749,41 @@ function abrirFicha(cuit) {
   }
   document.getElementById('ficha-foto-input').value = '';
   _fichaCuitActual = cuit;
+
+  const ib = c.ingresos_brutos || {};
+  const ibVacio = document.getElementById('ficha-ib-vacio');
+  const ibInsc  = document.getElementById('ficha-ib-inscripcion');
+  const ibExen  = document.getElementById('ficha-ib-exencion');
+
+  if (ib.inscripcion) {
+    const i = ib.inscripcion;
+    document.getElementById('ficha-ib-nro').textContent = i.nro_inscripcion || '—';
+    document.getElementById('ficha-ib-regimen').textContent = i.regimen || '—';
+    document.getElementById('ficha-ib-estado').innerHTML = i.estado
+      ? `<span class="badge ${i.estado.toLowerCase() === 'activo' ? 'bg-success' : 'bg-warning text-dark'}">${escHtml(i.estado)}</span>`
+      : '—';
+    document.getElementById('ficha-ib-actividad').textContent = i.actividad || '—';
+    const vig = [i.vigencia_desde, i.vigencia_hasta].filter(Boolean).join(' → ');
+    document.getElementById('ficha-ib-vigencia').textContent = vig || '—';
+    ibInsc.classList.remove('d-none');
+    ibVacio.classList.add('d-none');
+  } else {
+    ibInsc.classList.add('d-none');
+  }
+
+  if (ib.exencion) {
+    const e = ib.exencion;
+    document.getElementById('ficha-ib-ex-encuadre').textContent = e.encuadre || '—';
+    document.getElementById('ficha-ib-ex-hasta').textContent = e.valida_hasta || '—';
+    ibExen.classList.remove('d-none');
+    ibVacio.classList.add('d-none');
+  } else {
+    ibExen.classList.add('d-none');
+  }
+
+  if (!ib.inscripcion && !ib.exencion) {
+    ibVacio.classList.remove('d-none');
+  }
 
   if (_fichaChart) { _fichaChart.destroy(); _fichaChart = null; }
 
@@ -1103,6 +1204,47 @@ document.getElementById('btn-importar-compras').addEventListener('click', async 
     resDiv.classList.remove('d-none');
     btn.disabled = false;
     btn.innerHTML = '<i class="bi bi-cart-plus"></i> Importar Compras';
+  }
+});
+
+// ===== IMPORTAR INGRESOS BRUTOS ==============================================
+document.getElementById('btn-importar-ib').addEventListener('click', async () => {
+  const empresaId = document.getElementById('ib-empresa').value;
+  const archivo   = document.getElementById('ib-archivo').files[0];
+  const resDiv    = document.getElementById('ib-resultado');
+
+  if (!empresaId) { mostrarNotif('Seleccioná una empresa.', 'danger'); return; }
+  if (!archivo)   { mostrarNotif('Seleccioná el archivo Excel de constancias.', 'danger'); return; }
+
+  const btn = document.getElementById('btn-importar-ib');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Importando...';
+  resDiv.classList.add('d-none');
+
+  try {
+    const fd = new FormData();
+    fd.append('empresa_id', empresaId);
+    fd.append('archivo', archivo);
+    const resp = await fetch('/api/clientes/importar-ib', { method: 'POST', body: fd });
+    const data = await resp.json();
+
+    if (data.error) {
+      resDiv.innerHTML = `<div class="alert alert-danger">${escHtml(data.error)}</div>`;
+    } else {
+      resDiv.innerHTML = `<div class="alert alert-success">
+        <strong>Importación de Ingresos Brutos completada</strong><br>
+        <i class="bi bi-check-circle"></i> Clientes actualizados: <strong>${data.actualizados}</strong> &nbsp;
+        <i class="bi bi-people"></i> Total clientes: <strong>${data.total}</strong>
+      </div>`;
+      document.getElementById('ib-archivo').value = '';
+      cargarClientes();
+    }
+  } catch (err) {
+    resDiv.innerHTML = `<div class="alert alert-danger">Error de red: ${escHtml(String(err))}</div>`;
+  } finally {
+    resDiv.classList.remove('d-none');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-bank"></i> Importar Ingresos Brutos';
   }
 });
 </script>
