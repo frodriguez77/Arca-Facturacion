@@ -1329,7 +1329,7 @@ def api_test_ai():
                 timeout=30)
         elif provider == 'anthropic':
             resp = _req.post('https://api.anthropic.com/v1/messages',
-                headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json'},
+                headers={'x-api-key': api_key, 'anthropic-version': '2024-10-22', 'Content-Type': 'application/json'},
                 json={'model': model, 'max_tokens': 10, 'messages': [{'role': 'user', 'content': prompt}]},
                 timeout=30)
         elif provider == 'google':
@@ -1486,7 +1486,7 @@ def _call_ai_extract(text: str, tipo: str, file_bytes: bytes = None) -> dict:
             'https://api.anthropic.com/v1/messages',
             headers={
                 'x-api-key': api_key,
-                'anthropic-version': '2023-06-01',
+                'anthropic-version': '2024-10-22',
                 'anthropic-beta': 'pdfs-2024-09-25',
                 'Content-Type': 'application/json',
             },
