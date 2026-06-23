@@ -1467,7 +1467,15 @@ def api_clientes_ib_pdf():
     try:
         datos = _call_ai_extract(text, tipo, file_bytes=file_bytes)
     except Exception as e:
-        return jsonify({'error': f'Error al procesar con IA: {e}'}), 500
+        msg = str(e)
+        cfg = _load_ai_config()
+        for prov in cfg.get('providers', {}).values():
+            k = prov.get('api_key', '')
+            if k and k in msg:
+                msg = msg.replace(k, '***')
+        if '429' in msg:
+            msg = 'Demasiadas peticiones al proveedor de IA. Esperá 1 minuto y volvé a intentar.'
+        return jsonify({'error': f'Error al procesar con IA: {msg}'}), 500
 
     # Guardar en el cliente
     clientes = _load_clientes(empresa_id)
