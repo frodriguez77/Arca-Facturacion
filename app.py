@@ -1371,6 +1371,125 @@ def api_test_ai():
         return jsonify({'error': f'Error: {msg}'}), 500
 
 
+# ---------- PDF regex parser (sin IA) ----------------------------------------
+
+def _parse_ib_pdf_regex(text: str, tipo: str) -> dict | None:
+    import re
+    if not text or len(text.strip()) < 30:
+        return None
+
+    def _buscar(patterns, txt):
+        for p in patterns:
+            m = re.search(p, txt, re.IGNORECASE | re.DOTALL)
+            if m:
+                return m.group(1).strip()
+        return ''
+
+    txt = text.replace('\r\n', '\n')
+
+    if tipo == 'inscripcion':
+        datos = {}
+        datos['nro_inscripcion'] = _buscar([
+            r'(?:n[°ºo]?\s*(?:de\s+)?inscripci[oó]n|inscripci[oó]n\s*n[°ºo]?)\s*[:\-]?\s*(\S+)',
+            r'inscripci[oó]n[:\s]+(\d[\d\-/]+)',
+        ], txt)
+        datos['regimen'] = _buscar([
+            r'[rr][eé]gimen\s*[:\-]?\s*(.+?)(?:\n|$)',
+        ], txt)
+        datos['estado'] = _buscar([
+            r'[eE]stado\s*[:\-]?\s*(\w+)',
+        ], txt)
+        datos['actividad'] = _buscar([
+            r'[aA]ctividad(?:\s+principal)?\s*[:\-]?\s*(.+?)(?:\n|$)',
+        ], txt)
+        datos['cod_actividad'] = _buscar([
+            r'[cC][oó]d(?:igo)?\.?\s*(?:de\s+)?[aA]ctividad\s*[:\-]?\s*(\S+)',
+        ], txt)
+        datos['domicilio'] = _buscar([
+            r'[dD]omicilio(?:\s+fiscal)?\s*[:\-]?\s*(.+?)(?:\n|$)',
+        ], txt)
+        datos['vigencia_desde'] = _buscar([
+            r'[vV]igencia\s*(?:desde)?\s*[:\-]?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
+            r'[dD]esde\s*[:\-]?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
+        ], txt)
+        datos['vigencia_hasta'] = _buscar([
+            r'[vV]igencia\s*(?:.*?)[hH]asta\s*[:\-]?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
+            r'[hH]asta\s*[:\-]?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
+        ], txt)
+        datos['periodo_desde'] = _buscar([
+            r'[pP]er[ií]odo\s*(?:desde)?\s*[:\-]?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
+        ], txt)
+        datos['nro_constancia'] = _buscar([
+            r'[cC]onstancia\s*(?:n[°ºo]?)?\s*[:\-]?\s*(\d[\d\-]+)',
+            r'[nN][°ºo]?\s*[cC]onstancia\s*[:\-]?\s*(\d[\d\-]+)',
+        ], txt)
+        datos['provincia'] = _buscar([
+            r'[pP]rovincia\s*[:\-]?\s*(.+?)(?:\n|$)',
+        ], txt)
+        datos['organismo'] = _buscar([
+            r'(?:API|ARBA|AGIP|DGR|ATER|ATP|DGIP|DPR)\b',
+        ], txt)
+        if datos['organismo']:
+            datos['organismo'] = datos['organismo'].upper()
+        datos['fecha_inicio_actividad'] = _buscar([
+            r'[iI]nicio\s*(?:de\s+)?[aA]ctividad(?:es)?\s*[:\-]?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
+        ], txt)
+        datos['datos_actualizados'] = _buscar([
+            r'[dD]atos\s+[aA]ctualizados?\s*(?:al)?\s*[:\-]?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
+        ], txt)
+        datos['categoria'] = _buscar([
+            r'[cC]ategor[ií]a\s*[:\-]?\s*(.+?)(?:\n|$)',
+        ], txt)
+        filled = sum(1 for v in datos.values() if v)
+        if filled < 2:
+            return None
+        return datos
+
+    else:  # exencion
+        datos = {}
+        datos['nro_cuenta'] = _buscar([
+            r'[cC]uenta\s*(?:n[°ºo]?)?\s*[:\-]?\s*(\S+)',
+            r'[nN][°ºo]?\s*[cC]uenta\s*[:\-]?\s*(\S+)',
+        ], txt)
+        datos['actividad'] = _buscar([
+            r'[aA]ctividad(?:\s+principal)?\s*[:\-]?\s*(.+?)(?:\n|$)',
+        ], txt)
+        datos['cod_actividad'] = _buscar([
+            r'[cC][oó]d(?:igo)?\.?\s*(?:de\s+)?[aA]ctividad\s*[:\-]?\s*(\S+)',
+        ], txt)
+        datos['encuadre'] = _buscar([
+            r'[eE]ncuadre(?:\s+normativo)?\s*[:\-]?\s*(.+?)(?:\n|$)',
+            r'[aA]rt[ií]culo\s*.+?(?:\n|$)',
+        ], txt)
+        datos['nro_constancia'] = _buscar([
+            r'[cC]onstancia\s*(?:n[°ºo]?)?\s*[:\-]?\s*(\d[\d\-]+)',
+            r'[nN][°ºo]?\s*[cC]onstancia\s*[:\-]?\s*(\d[\d\-]+)',
+        ], txt)
+        datos['valida_hasta'] = _buscar([
+            r'[vV][aá]lida?\s*[hH]asta\s*[:\-]?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
+            r'[hH]asta\s*[:\-]?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
+            r'[vV]encimiento\s*[:\-]?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
+        ], txt)
+        datos['fecha_tramite'] = _buscar([
+            r'[fF]echa\s*(?:de\s+)?[tT]r[aá]mite\s*[:\-]?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
+        ], txt)
+        datos['fecha_inicio_actividad'] = _buscar([
+            r'[iI]nicio\s*(?:de\s+)?[aA]ctividad(?:es)?\s*[:\-]?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})',
+        ], txt)
+        datos['provincia'] = _buscar([
+            r'[pP]rovincia\s*[:\-]?\s*(.+?)(?:\n|$)',
+        ], txt)
+        datos['organismo'] = _buscar([
+            r'(?:API|ARBA|AGIP|DGR|ATER|ATP|DGIP|DPR)\b',
+        ], txt)
+        if datos.get('organismo'):
+            datos['organismo'] = datos['organismo'].upper()
+        filled = sum(1 for v in datos.values() if v)
+        if filled < 2:
+            return None
+        return datos
+
+
 # ---------- AI helpers -------------------------------------------------------
 
 def _extract_pdf_text(file_bytes: bytes) -> str:
@@ -1555,18 +1674,25 @@ def api_clientes_ib_pdf():
     file_bytes = archivo.read()
     text = _extract_pdf_text(file_bytes)
 
-    try:
-        datos = _call_ai_extract(text, tipo, file_bytes=file_bytes)
-    except Exception as e:
-        msg = str(e)
-        cfg = _load_ai_config()
-        for prov in cfg.get('providers', {}).values():
-            k = prov.get('api_key', '')
-            if k and k in msg:
-                msg = msg.replace(k, '***')
-        if '429' in msg:
-            msg = 'Demasiadas peticiones al proveedor de IA. Esperá 1 minuto y volvé a intentar.'
-        return jsonify({'error': f'Error al procesar con IA: {msg}'}), 500
+    datos = None
+    if text:
+        datos = _parse_ib_pdf_regex(text, tipo)
+
+    if not datos:
+        try:
+            datos = _call_ai_extract(text, tipo, file_bytes=file_bytes)
+        except Exception as e:
+            msg = str(e)
+            cfg = _load_ai_config()
+            for prov in cfg.get('providers', {}).values():
+                k = prov.get('api_key', '')
+                if k and k in msg:
+                    msg = msg.replace(k, '***')
+            if '429' in msg:
+                msg = 'Demasiadas peticiones al proveedor de IA. Esperá 1 minuto y volvé a intentar.'
+            if not text:
+                msg = 'No se pudo extraer texto del PDF. Verificá que el PDF tenga texto seleccionable (no escaneo/imagen).'
+            return jsonify({'error': msg}), 500
 
     # Guardar en el cliente
     clientes = _load_clientes(empresa_id)
