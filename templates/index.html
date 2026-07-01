@@ -185,6 +185,9 @@
           <a id="btn-descargar" href="#" class="btn btn-success btn-sm">
             <i class="bi bi-download"></i> Descargar Excel
           </a>
+          <a id="btn-descargar-pdfs" href="#" class="btn btn-outline-danger btn-sm">
+            <i class="bi bi-file-earmark-pdf"></i> Descargar PDFs
+          </a>
           <button class="btn btn-outline-primary btn-sm" id="btn-nuevo">
             <i class="bi bi-plus-circle"></i> Nueva facturación
           </button>
@@ -474,6 +477,8 @@ async function cargarResultadosMes(mes = '') {
       renderResultados(data);
       document.getElementById('btn-descargar').href =
         `/descargar?empresa_id=${empresaActual.id}&mes=${mesActual}`;
+      document.getElementById('btn-descargar-pdfs').href =
+        `/descargar-pdfs?empresa_id=${empresaActual.id}&mes=${mesActual}`;
       hide('card-upload'); hide('card-preview'); show('card-result');
       document.getElementById('btn-ver-resultados').classList.remove('d-none');
       await cargarSelectorMeses();
@@ -551,8 +556,11 @@ function renderPreview(data) {
   registrosData = data.registros;   // guardar para PDF
   document.getElementById('upload-error').classList.add('d-none');
   hide('card-upload'); show('card-preview');
-  document.getElementById('preview-info').innerHTML =
-    `<i class="bi bi-info-circle"></i> <strong>${data.total}</strong> comprobante(s) cargados y listos para enviar.`;
+  let infoHtml = `<i class="bi bi-info-circle"></i> <strong>${data.total}</strong> comprobante(s) cargados y listos para enviar.`;
+  if (data.cuit_generico_msg) {
+    infoHtml += `<div class="alert alert-warning mt-2 mb-0 py-2 small"><i class="bi bi-exclamation-triangle"></i> ${data.cuit_generico_msg}</div>`;
+  }
+  document.getElementById('preview-info').innerHTML = infoHtml;
   const cols = Object.keys(data.registros[0]);
   document.querySelector('#tbl-preview thead').innerHTML =
     '<tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr>';
@@ -584,6 +592,7 @@ function renderResultados(data) {
   document.getElementById('r-ok').textContent    = data.resumen.aprobados;
   document.getElementById('r-err').textContent   = data.resumen.rechazados;
   document.getElementById('btn-descargar').href  = `/descargar?empresa_id=${empresaActual.id}&mes=${mesActual}`;
+  document.getElementById('btn-descargar-pdfs').href = `/descargar-pdfs?empresa_id=${empresaActual.id}&mes=${mesActual}`;
   document.getElementById('btn-ver-resultados').classList.remove('d-none');
 
   const conEmail = data.resultados.filter(r => r.resultado === 'APROBADO' && r.email).length;

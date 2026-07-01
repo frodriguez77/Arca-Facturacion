@@ -1343,9 +1343,52 @@ document.getElementById('form-empresa').addEventListener('submit', async e => {
       }
 
       mostrarNotif(editando ? '✏️ Empresa actualizada correctamente.' : '✅ Empresa agregada correctamente.');
+
+      if (!editando && body.nombre) {
+        const empresaNuevoId = data.id;
+        const partes = body.nombre.trim().split(/\s+/);
+        let userSugerido = '';
+        if (partes.length >= 2) {
+          userSugerido = (partes[0][0] + partes[partes.length - 1]).toLowerCase();
+        } else {
+          userSugerido = partes[0].toLowerCase();
+        }
+        userSugerido = userSugerido.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+        const crearUser = confirm(
+          `¿Querés crear un usuario para esta empresa?\n\n` +
+          `Usuario sugerido: ${userSugerido}\n` +
+          `Contraseña: ${userSugerido}123\n` +
+          `Acceso: solo a "${body.nombre}"\n\n` +
+          `Podés cambiar la contraseña después en la pestaña Usuarios.`
+        );
+        if (crearUser) {
+          try {
+            const ur = await fetch('/api/usuarios', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({
+                username: userSugerido,
+                nombre: body.nombre,
+                password: userSugerido + '123',
+                rol: 'usuario',
+                empresas: [empresaNuevoId],
+              }),
+            });
+            const ud = await ur.json();
+            if (ud.error) {
+              mostrarNotif('Empresa creada. Error al crear usuario: ' + ud.error, 'warning');
+            } else {
+              mostrarNotif(`Usuario "${userSugerido}" creado con acceso a "${body.nombre}".`);
+            }
+          } catch (ue) {
+            mostrarNotif('Empresa creada. Error al crear usuario: ' + ue, 'warning');
+          }
+        }
+      }
+
       limpiarForm();
       bootstrap.Collapse.getOrCreateInstance(document.getElementById('collapse-empresa')).hide();
-      setTimeout(() => location.reload(), 1200);
+      setTimeout(() => location.reload(), 2000);
     }
   } catch (err) {
     mostrarNotif('Error de red: ' + err, 'danger');

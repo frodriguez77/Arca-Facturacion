@@ -1318,6 +1318,19 @@ document.getElementById('btn-importar-ib').addEventListener('click', async () =>
     btn.innerHTML = '<i class="bi bi-bank"></i> Importar Ingresos Brutos';
   }
 });
+
+// Auto-seleccionar empresa si el usuario tiene solo una
+(function() {
+  const selectors = ['cli-empresa', 'imp-empresa', 'comp-empresa', 'ib-empresa'];
+  selectors.forEach(id => {
+    const sel = document.getElementById(id);
+    if (sel && sel.options.length === 2) {
+      sel.selectedIndex = 1;
+    }
+  });
+  const cli = document.getElementById('cli-empresa');
+  if (cli && cli.value) cargarClientes();
+})();
 </script>
 </body>
 </html>

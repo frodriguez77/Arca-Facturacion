@@ -575,8 +575,10 @@ def upload():
         if faltantes:
             return jsonify({'error': f'Faltan columnas: {", ".join(faltantes)}'}), 400
 
+        CUIT_GENERICO = '20222222223'
         registros = []
-        for _, row in df.iterrows():
+        filas_cuit_insertado = []
+        for idx, row in df.iterrows():
             r = {}
             for c in COLUMNAS:
                 v = row[c]
@@ -584,9 +586,35 @@ def upload():
                     v = v.strftime('%Y-%m-%d')
                 r[c] = str(v) if v is not None else ''
             r['forma_pago'] = str(row.get('forma_pago', '') or '').strip()
+
+            doc_nro = r.get('doc_nro', '').replace('.0', '').strip()
+            doc_tipo = r.get('doc_tipo', '').replace('.0', '').strip()
+            if not doc_nro or doc_nro == '' or doc_nro == 'nan' or doc_nro == '0':
+                r['doc_nro'] = CUIT_GENERICO
+                if not doc_tipo or doc_tipo == '' or doc_tipo == 'nan' or doc_tipo == '0':
+                    r['doc_tipo'] = '99'
+                filas_cuit_insertado.append(idx + 2)
+
             registros.append(r)
 
-        return jsonify({'ok': True, 'registros': registros, 'total': len(registros)})
+        if filas_cuit_insertado:
+            for fila_excel in filas_cuit_insertado:
+                i = fila_excel - 2
+                df.at[i, 'doc_nro'] = CUIT_GENERICO
+                if str(df.at[i, 'doc_tipo']).strip() in ('', 'nan', '0'):
+                    df.at[i, 'doc_tipo'] = 99
+            df.to_excel(path, index=False)
+
+        resp = {'ok': True, 'registros': registros, 'total': len(registros)}
+        if filas_cuit_insertado:
+            resp['cuit_generico_filas'] = filas_cuit_insertado
+            resp['cuit_generico_msg'] = (
+                f'Se insertó el CUIT genérico ({CUIT_GENERICO}) en '
+                f'{len(filas_cuit_insertado)} fila(s) sin documento: '
+                f'fila(s) {", ".join(str(f) for f in filas_cuit_insertado[:20])}'
+                + ('...' if len(filas_cuit_insertado) > 20 else '')
+            )
+        return jsonify(resp)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1107,6 +1135,63 @@ def descargar():
         return 'No hay resultado disponible', 404
     nombre = f'facturas_{empresa["cuit"]}_{mes}_resultado.xlsx'
     return send_file(path, as_attachment=True, download_name=nombre)
+
+
+@app.route('/descargar-pdfs')
+@login_required
+def descargar_pdfs():
+    user       = _get_current_user()
+    empresa_id = request.args.get('empresa_id', '').strip()
+    mes        = request.args.get('mes', '').strip() or _mes_actual()
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return 'Empresa no encontrada', 404
+    if not _user_can_access(user, empresa_id):
+        return 'Acceso denegado', 403
+    path = _resultado_path(empresa_id, mes)
+    if not os.path.exists(path):
+        return 'No hay resultados para este mes', 404
+
+    try:
+        df = pd.read_excel(path)
+        df.columns = [c.lower().strip().replace(' ', '_') for c in df.columns]
+        buf_zip = io.BytesIO()
+        count = 0
+        with zipfile.ZipFile(buf_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for idx in range(len(df)):
+                row = df.iloc[idx].to_dict()
+                resultado_val = str(row.get('resultado', '')).upper()
+                if resultado_val != 'APROBADO':
+                    continue
+                registro = {c: row.get(c, '') for c in COLUMNAS}
+                registro['fecha'] = str(registro['fecha'])
+                resultado = {
+                    'nro':     int(row.get('nro_cbte', 0)),
+                    'cae':     _str_cae(row.get('cae', '')),
+                    'vto_cae': _str_cae(row.get('vto_cae', '')),
+                }
+                cliente    = _get_cliente(empresa_id, registro.get('doc_nro', ''))
+                forma_pago = str(row.get('forma_pago', '') or '').strip()
+                pdf_buf = factura_pdf.generar_pdf(empresa, registro, resultado,
+                                                  cliente=cliente, forma_pago=forma_pago)
+                pv  = int(registro['punto_venta'])
+                nro = int(resultado['nro'])
+                tipo = int(registro.get('tipo_cbte', 0))
+                tipo_nombre = TIPO_NOMBRE.get(tipo, f'tipo{tipo}')
+                tipo_nombre = tipo_nombre.replace(' ', '_')
+                fname = f'{tipo_nombre}_{pv:04d}-{nro:08d}.pdf'
+                zf.writestr(fname, pdf_buf.read())
+                count += 1
+
+        if count == 0:
+            return 'No hay comprobantes aprobados para descargar', 404
+
+        buf_zip.seek(0)
+        nombre = f'comprobantes_{empresa["cuit"]}_{mes}.zip'
+        return send_file(buf_zip, as_attachment=True, download_name=nombre,
+                         mimetype='application/zip')
+    except Exception as e:
+        return f'Error al generar PDFs: {e}', 500
 
 
 @app.route('/plantilla')
