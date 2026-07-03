@@ -2604,6 +2604,69 @@ def _leer_registros_reporte(empresa_id: str, desde: str, hasta: str,
     return registros
 
 
+@app.route('/api/reportes/diagnostico')
+@login_required
+def api_reportes_diagnostico():
+    """Devuelve info de diagnóstico: comprobantes por mes, duplicados por CAE y por cbte."""
+    user       = _get_current_user()
+    empresa_id = request.args.get('empresa_id', '').strip()
+    empresa    = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa or not _user_can_access(user, empresa_id):
+        return jsonify({'error': 'Acceso denegado'}), 403
+
+    base_dir = os.path.join(UPLOAD, empresa['cuit'])
+    if not os.path.exists(base_dir):
+        return jsonify({'error': 'Sin datos'}), 404
+
+    meses = sorted([
+        d for d in os.listdir(base_dir)
+        if os.path.isdir(os.path.join(base_dir, d)) and re.match(r'\d{4}-\d{2}', d)
+    ])
+
+    all_caes = {}
+    all_cbtes = {}
+    por_mes = {}
+    for mes in meses:
+        path = os.path.join(base_dir, mes, 'facturas_resultado.xlsx')
+        if not os.path.exists(path):
+            continue
+        try:
+            df = pd.read_excel(path)
+            df.columns = [c.lower().strip().replace(' ', '_') for c in df.columns]
+            count_mes = 0
+            for idx, row in df.iterrows():
+                if str(row.get('resultado', '')).upper() != 'APROBADO':
+                    continue
+                count_mes += 1
+                cae = _str_cae(row.get('cae', ''))
+                t   = int(row.get('tipo_cbte', 0))
+                pv  = int(row.get('punto_venta', 0))
+                nro = int(row.get('nro_cbte', 0))
+                cbte_key = f"{t}-{pv}-{nro}"
+                if cae:
+                    all_caes.setdefault(cae, []).append(mes)
+                all_cbtes.setdefault(cbte_key, []).append(mes)
+            por_mes[mes] = count_mes
+        except Exception:
+            pass
+
+    dup_caes  = {k: v for k, v in all_caes.items() if len(v) > 1}
+    dup_cbtes = {k: v for k, v in all_cbtes.items() if len(v) > 1}
+
+    return jsonify({
+        'empresa': empresa['nombre'],
+        'cuit': empresa['cuit'],
+        'por_mes': por_mes,
+        'total_aprobados': sum(por_mes.values()),
+        'caes_unicos': len(all_caes),
+        'cbtes_unicos': len(all_cbtes),
+        'duplicados_cae': dup_caes,
+        'cantidad_dup_cae': len(dup_caes),
+        'duplicados_cbte': dup_cbtes,
+        'cantidad_dup_cbte': len(dup_cbtes),
+    })
+
+
 @app.route('/reportes')
 @login_required
 def reportes():
