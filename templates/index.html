@@ -462,6 +462,13 @@ document.querySelectorAll('.empresa-card').forEach(card => {
 
     hide('card-empresa'); show('card-upload');
 
+    // Guardar empresa activa en sesión del servidor
+    fetch('/api/empresa-activa', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ empresa_id: empresaActual.id }),
+    });
+
     // Cargar resultados del mes actual si existen
     cargarResultadosMes();
   });

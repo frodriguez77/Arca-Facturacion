@@ -277,6 +277,24 @@ def index():
     return render_template('index.html', empresas=empresas, current_user=user)
 
 
+# ---------- Empresa activa en sesión ------------------------------------------
+
+@app.route('/api/empresa-activa', methods=['POST'])
+@login_required
+def api_set_empresa_activa():
+    data = request.get_json(force=True)
+    empresa_id = (data.get('empresa_id') or '').strip()
+    user = _get_current_user()
+    if empresa_id and _user_can_access(user, empresa_id):
+        session['empresa_activa'] = empresa_id
+        return jsonify({'ok': True})
+    return jsonify({'error': 'Acceso denegado'}), 403
+
+@app.route('/api/empresa-activa')
+@login_required
+def api_get_empresa_activa():
+    return jsonify({'empresa_id': session.get('empresa_activa', '')})
+
 # ---------- API empresas ------------------------------------------------------
 
 @app.route('/api/empresas')

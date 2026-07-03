@@ -142,7 +142,7 @@
         <div class="row g-3 mb-4" style="max-width:560px">
           <div class="col-12">
             <label class="form-label fw-semibold">Empresa <span class="text-danger">*</span></label>
-            <select class="form-select" id="cli-empresa" onchange="cargarClientes(); _actualizarDisplaysEmpresa();">
+            <select class="form-select" id="cli-empresa" onchange="cargarClientes(); _actualizarDisplaysEmpresa(); _guardarEmpresaActiva();">
               <option value="">— Seleccioná una empresa —</option>
               {% for e in empresas %}
               <option value="{{ e.id }}" data-cuit="{{ e.cuit }}">{{ e.nombre }} ({{ e.cuit }})</option>
@@ -1108,6 +1108,17 @@ function _getEmpresaSeleccionada() {
   return { id: sel.value, texto: opt.textContent.trim(), cuit: (opt.dataset.cuit || opt.textContent.match(/\((\d+)\)/)?.[1] || '') };
 }
 
+function _guardarEmpresaActiva() {
+  const emp = _getEmpresaSeleccionada();
+  if (emp) {
+    fetch('/api/empresa-activa', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ empresa_id: emp.id }),
+    });
+  }
+}
+
 function _actualizarDisplaysEmpresa() {
   const emp = _getEmpresaSeleccionada();
   ['imp-empresa-display', 'comp-empresa-display', 'ib-empresa-display'].forEach(id => {
@@ -1361,13 +1372,26 @@ document.getElementById('btn-importar-ib').addEventListener('click', async () =>
   }
 });
 
-// Auto-seleccionar empresa si el usuario tiene solo una
-(function() {
+// Auto-seleccionar empresa activa de la sesión (la elegida en Facturación)
+(async function() {
   const cli = document.getElementById('cli-empresa');
-  if (cli && cli.options.length === 2) {
+  try {
+    const resp = await fetch('/api/empresa-activa');
+    const data = await resp.json();
+    if (data.empresa_id) {
+      for (let i = 0; i < cli.options.length; i++) {
+        if (cli.options[i].value === data.empresa_id) {
+          cli.selectedIndex = i;
+          break;
+        }
+      }
+    }
+  } catch (e) {}
+  // Fallback: si no hay activa y solo tiene una, seleccionarla
+  if (!cli.value && cli.options.length === 2) {
     cli.selectedIndex = 1;
   }
-  if (cli && cli.value) {
+  if (cli.value) {
     cargarClientes();
     _actualizarDisplaysEmpresa();
   }
