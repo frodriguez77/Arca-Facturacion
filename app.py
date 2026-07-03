@@ -2558,6 +2558,7 @@ def _leer_registros_reporte(empresa_id: str, desde: str, hasta: str,
         meses = [m for m in meses if m <= hasta]
 
     registros = []
+    caes_vistos = set()
     for mes in meses:
         path = os.path.join(base_dir, mes, 'facturas_resultado.xlsx')
         if not os.path.exists(path):
@@ -2568,6 +2569,11 @@ def _leer_registros_reporte(empresa_id: str, desde: str, hasta: str,
             for idx, row in df.iterrows():
                 if str(row.get('resultado', '')).upper() != 'APROBADO':
                     continue
+                cae = _str_cae(row.get('cae', ''))
+                if cae and cae in caes_vistos:
+                    continue
+                if cae:
+                    caes_vistos.add(cae)
                 razon = str(row.get('razon_social', ''))
                 if cliente and cliente.lower() not in razon.lower():
                     continue
@@ -2590,7 +2596,7 @@ def _leer_registros_reporte(empresa_id: str, desde: str, hasta: str,
                     'imp_neto':     float(row.get('imp_neto', 0)),
                     'imp_iva':      float(row.get('imp_iva', 0)),
                     'imp_total':    float(row.get('imp_total', 0)),
-                    'cae':          _str_cae(row.get('cae', '')),
+                    'cae':          cae,
                     'vto_cae':      _str_cae(row.get('vto_cae', '')),
                 })
         except Exception as e:
