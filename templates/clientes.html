@@ -142,10 +142,10 @@
         <div class="row g-3 mb-4" style="max-width:560px">
           <div class="col-12">
             <label class="form-label fw-semibold">Empresa <span class="text-danger">*</span></label>
-            <select class="form-select" id="cli-empresa" onchange="cargarClientes()">
+            <select class="form-select" id="cli-empresa" onchange="cargarClientes(); _actualizarDisplaysEmpresa();">
               <option value="">— Seleccioná una empresa —</option>
               {% for e in empresas %}
-              <option value="{{ e.id }}">{{ e.nombre }} ({{ e.cuit }})</option>
+              <option value="{{ e.id }}" data-cuit="{{ e.cuit }}">{{ e.nombre }} ({{ e.cuit }})</option>
               {% endfor %}
             </select>
           </div>
@@ -460,13 +460,10 @@
 
       <div class="row g-3 mb-4" style="max-width:560px">
         <div class="col-12">
-          <label class="form-label fw-semibold">Empresa <span class="text-danger">*</span></label>
-          <select class="form-select" id="imp-empresa">
-            <option value="">— Seleccioná una empresa —</option>
-            {% for e in empresas %}
-            <option value="{{ e.id }}" data-cuit="{{ e.cuit }}">{{ e.nombre }} ({{ e.cuit }})</option>
-            {% endfor %}
-          </select>
+          <label class="form-label fw-semibold">Empresa</label>
+          <div class="form-control bg-light" id="imp-empresa-display">
+            <span class="text-muted">Seleccioná una empresa en la pestaña Clientes</span>
+          </div>
           <div class="form-text text-info d-none" id="imp-cuit-info"></div>
         </div>
         <div class="col-12">
@@ -498,13 +495,9 @@
       <div class="row g-3 mb-4" style="max-width:560px">
         <div class="col-12">
           <label class="form-label fw-semibold">Empresa <span class="text-danger">*</span></label>
-          <select class="form-select" id="comp-empresa">
-            <option value="">— Seleccioná una empresa —</option>
-            {% for e in empresas %}
-            <option value="{{ e.id }}" data-cuit="{{ e.cuit }}">{{ e.nombre }} ({{ e.cuit }})</option>
-            {% endfor %}
-          </select>
-          <div class="form-text text-info d-none" id="comp-cuit-info"></div>
+          <div class="form-control bg-light" id="comp-empresa-display">
+            <span class="text-muted">Seleccioná una empresa en la pestaña Clientes</span>
+          </div>
         </div>
         <div class="col-12">
           <label class="form-label fw-semibold">Archivo Excel de AFIP <span class="text-danger">*</span></label>
@@ -535,12 +528,9 @@
       <div class="row g-3 mb-4" style="max-width:560px">
         <div class="col-12">
           <label class="form-label fw-semibold">Empresa <span class="text-danger">*</span></label>
-          <select class="form-select" id="ib-empresa">
-            <option value="">— Seleccioná una empresa —</option>
-            {% for e in empresas %}
-            <option value="{{ e.id }}">{{ e.nombre }} ({{ e.cuit }})</option>
-            {% endfor %}
-          </select>
+          <div class="form-control bg-light" id="ib-empresa-display">
+            <span class="text-muted">Seleccioná una empresa en la pestaña Clientes</span>
+          </div>
         </div>
         <div class="col-12">
           <label class="form-label fw-semibold">Archivo Excel de constancias <span class="text-danger">*</span></label>
@@ -1110,35 +1100,55 @@ document.getElementById('btn-sync-clientes').addEventListener('click', async () 
   }
 });
 
-// ===== IMPORTAR VENTAS AFIP ==================================================
-// Mostrar CUIT al seleccionar empresa y validar archivo
-document.getElementById('imp-empresa').addEventListener('change', function() {
-  const info = document.getElementById('imp-cuit-info');
-  const opt = this.options[this.selectedIndex];
-  if (this.value && opt.dataset.cuit) {
-    info.textContent = `Solo se importarán comprobantes del CUIT ${opt.dataset.cuit}`;
-    info.classList.remove('d-none');
-  } else {
-    info.classList.add('d-none');
-  }
-});
+// ===== Sincronizar empresa seleccionada en todas las pestañas ================
+function _getEmpresaSeleccionada() {
+  const sel = document.getElementById('cli-empresa');
+  if (!sel || !sel.value) return null;
+  const opt = sel.options[sel.selectedIndex];
+  return { id: sel.value, texto: opt.textContent.trim(), cuit: (opt.dataset.cuit || opt.textContent.match(/\((\d+)\)/)?.[1] || '') };
+}
 
+function _actualizarDisplaysEmpresa() {
+  const emp = _getEmpresaSeleccionada();
+  ['imp-empresa-display', 'comp-empresa-display', 'ib-empresa-display'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (emp) {
+      el.innerHTML = `<strong>${emp.texto}</strong>`;
+    } else {
+      el.innerHTML = '<span class="text-muted">Seleccioná una empresa en la pestaña Clientes</span>';
+    }
+  });
+  const info = document.getElementById('imp-cuit-info');
+  if (info) {
+    if (emp && emp.cuit) {
+      info.textContent = `Solo se importarán comprobantes del CUIT ${emp.cuit}`;
+      info.classList.remove('d-none');
+    } else {
+      info.classList.add('d-none');
+    }
+  }
+}
+
+const _cliEmpresaOrig = document.getElementById('cli-empresa').onchange;
+document.getElementById('cli-empresa').addEventListener('change', _actualizarDisplaysEmpresa);
+
+// ===== IMPORTAR VENTAS AFIP ==================================================
 document.getElementById('btn-importar').addEventListener('click', async () => {
-  const sel = document.getElementById('imp-empresa');
-  const empresaId = sel.value;
+  const emp = _getEmpresaSeleccionada();
   const archivo   = document.getElementById('imp-archivo').files[0];
   const resDiv    = document.getElementById('imp-resultado');
 
-  if (!empresaId) { mostrarNotif('Seleccioná una empresa.', 'danger'); return; }
+  if (!emp) { mostrarNotif('Seleccioná una empresa en la pestaña Clientes.', 'danger'); return; }
   if (!archivo)   { mostrarNotif('Seleccioná el archivo Excel de AFIP.', 'danger'); return; }
 
   // Validar CUIT del nombre del archivo contra la empresa
-  const cuitEmpresa = sel.options[sel.selectedIndex].dataset.cuit || '';
   const cuitMatch = archivo.name.match(/(\d{11})/);
-  if (cuitMatch && cuitMatch[1] !== cuitEmpresa.replace(/-/g, '')) {
-    mostrarNotif(`El CUIT del archivo (${cuitMatch[1]}) no coincide con la empresa seleccionada (${cuitEmpresa}). Verificá que estás importando el archivo correcto.`, 'danger');
+  if (cuitMatch && cuitMatch[1] !== emp.cuit.replace(/-/g, '')) {
+    mostrarNotif(`El CUIT del archivo (${cuitMatch[1]}) no coincide con la empresa seleccionada (${emp.cuit}). Verificá que estás importando el archivo correcto.`, 'danger');
     return;
   }
+  const empresaId = emp.id;
 
   const btn = document.getElementById('btn-importar');
   btn.disabled = true;
@@ -1179,33 +1189,21 @@ document.getElementById('btn-importar').addEventListener('click', async () => {
 });
 
 // ===== IMPORTAR COMPRAS AFIP =================================================
-document.getElementById('comp-empresa').addEventListener('change', function() {
-  const info = document.getElementById('comp-cuit-info');
-  const opt = this.options[this.selectedIndex];
-  if (this.value && opt.dataset.cuit) {
-    info.textContent = `Solo se importarán comprobantes del CUIT ${opt.dataset.cuit}`;
-    info.classList.remove('d-none');
-  } else {
-    info.classList.add('d-none');
-  }
-});
-
 document.getElementById('btn-importar-compras').addEventListener('click', async () => {
-  const sel = document.getElementById('comp-empresa');
-  const empresaId = sel.value;
+  const emp = _getEmpresaSeleccionada();
   const archivo   = document.getElementById('comp-archivo').files[0];
   const resDiv    = document.getElementById('comp-resultado');
 
-  if (!empresaId) { mostrarNotif('Seleccioná una empresa.', 'danger'); return; }
+  if (!emp) { mostrarNotif('Seleccioná una empresa en la pestaña Clientes.', 'danger'); return; }
   if (!archivo)   { mostrarNotif('Seleccioná el archivo Excel de AFIP.', 'danger'); return; }
 
   // Validar CUIT del nombre del archivo contra la empresa
-  const cuitEmpresa = sel.options[sel.selectedIndex].dataset.cuit || '';
   const cuitMatch = archivo.name.match(/(\d{11})/);
-  if (cuitMatch && cuitMatch[1] !== cuitEmpresa.replace(/-/g, '')) {
-    mostrarNotif(`El CUIT del archivo (${cuitMatch[1]}) no coincide con la empresa seleccionada (${cuitEmpresa}). Verificá que estás importando el archivo correcto.`, 'danger');
+  if (cuitMatch && cuitMatch[1] !== emp.cuit.replace(/-/g, '')) {
+    mostrarNotif(`El CUIT del archivo (${cuitMatch[1]}) no coincide con la empresa seleccionada (${emp.cuit}). Verificá que estás importando el archivo correcto.`, 'danger');
     return;
   }
+  const empresaId = emp.id;
 
   const btn = document.getElementById('btn-importar-compras');
   btn.disabled = true;
@@ -1323,12 +1321,13 @@ function _actualizarIbCard(ib) {
 
 // ===== IMPORTAR INGRESOS BRUTOS ==============================================
 document.getElementById('btn-importar-ib').addEventListener('click', async () => {
-  const empresaId = document.getElementById('ib-empresa').value;
+  const emp = _getEmpresaSeleccionada();
   const archivo   = document.getElementById('ib-archivo').files[0];
   const resDiv    = document.getElementById('ib-resultado');
 
-  if (!empresaId) { mostrarNotif('Seleccioná una empresa.', 'danger'); return; }
+  if (!emp) { mostrarNotif('Seleccioná una empresa en la pestaña Clientes.', 'danger'); return; }
   if (!archivo)   { mostrarNotif('Seleccioná el archivo Excel de constancias.', 'danger'); return; }
+  const empresaId = emp.id;
 
   const btn = document.getElementById('btn-importar-ib');
   btn.disabled = true;
@@ -1364,15 +1363,14 @@ document.getElementById('btn-importar-ib').addEventListener('click', async () =>
 
 // Auto-seleccionar empresa si el usuario tiene solo una
 (function() {
-  const selectors = ['cli-empresa', 'imp-empresa', 'comp-empresa', 'ib-empresa'];
-  selectors.forEach(id => {
-    const sel = document.getElementById(id);
-    if (sel && sel.options.length === 2) {
-      sel.selectedIndex = 1;
-    }
-  });
   const cli = document.getElementById('cli-empresa');
-  if (cli && cli.value) cargarClientes();
+  if (cli && cli.options.length === 2) {
+    cli.selectedIndex = 1;
+  }
+  if (cli && cli.value) {
+    cargarClientes();
+    _actualizarDisplaysEmpresa();
+  }
 })();
 </script>
 </body>
