@@ -2242,18 +2242,31 @@ def api_clientes_importar_ib():
 
 
 @app.route('/api/clientes/importar-compras', methods=['POST'])
-@admin_required
+@login_required
 def api_clientes_importar_compras():
+    user = _get_current_user()
     empresa_id = (request.form.get('empresa_id') or '').strip()
     empresa    = EmpresaRepository.get_by_id(empresa_id)
     if not empresa:
         return jsonify({'error': 'Empresa no encontrada'}), 400
+    if not _user_can_access(user, empresa_id):
+        return jsonify({'error': 'No tenés acceso a esta empresa'}), 403
 
     f = request.files.get('archivo')
     if not f or not f.filename:
         return jsonify({'error': 'No se recibió ningún archivo'}), 400
     if not f.filename.lower().endswith(('.xlsx', '.xls')):
         return jsonify({'error': 'El archivo debe ser .xlsx'}), 400
+
+    # Validar CUIT del archivo contra la empresa seleccionada
+    cuit_empresa = empresa['cuit'].replace('-', '').strip()
+    nombre_archivo = f.filename or ''
+    m_cuit = re.search(r'(\d{11})', nombre_archivo)
+    if m_cuit and m_cuit.group(1) != cuit_empresa:
+        return jsonify({
+            'error': f'El CUIT del archivo ({m_cuit.group(1)}) no coincide con la empresa seleccionada ({cuit_empresa} - {empresa["nombre"]}). '
+                     f'Verificá que estás importando el archivo correcto para esta empresa.'
+        }), 400
 
     try:
         wb = load_workbook(f)
@@ -2818,18 +2831,31 @@ def _afip_alicuota(row: dict) -> float:
 
 
 @app.route('/api/importar-afip', methods=['POST'])
-@admin_required
+@login_required
 def api_importar_afip():
+    user = _get_current_user()
     empresa_id = (request.form.get('empresa_id') or '').strip()
     empresa    = EmpresaRepository.get_by_id(empresa_id)
     if not empresa:
         return jsonify({'error': 'Empresa no encontrada'}), 400
+    if not _user_can_access(user, empresa_id):
+        return jsonify({'error': 'No tenés acceso a esta empresa'}), 403
 
     f = request.files.get('archivo')
     if not f or not f.filename:
         return jsonify({'error': 'No se recibió ningún archivo'}), 400
     if not f.filename.lower().endswith(('.xlsx', '.xls')):
         return jsonify({'error': 'El archivo debe ser .xlsx'}), 400
+
+    # Validar CUIT del archivo contra la empresa seleccionada
+    cuit_empresa = empresa['cuit'].replace('-', '').strip()
+    nombre_archivo = f.filename or ''
+    m_cuit = re.search(r'(\d{11})', nombre_archivo)
+    if m_cuit and m_cuit.group(1) != cuit_empresa:
+        return jsonify({
+            'error': f'El CUIT del archivo ({m_cuit.group(1)}) no coincide con la empresa seleccionada ({cuit_empresa} - {empresa["nombre"]}). '
+                     f'Verificá que estás importando el archivo correcto para esta empresa.'
+        }), 400
 
     EXCEL_HEADERS = COLUMNAS + ['Nro_Cbte', 'Resultado', 'CAE', 'Vto_CAE', 'Observaciones']
 

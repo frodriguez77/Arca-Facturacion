@@ -464,9 +464,10 @@
           <select class="form-select" id="imp-empresa">
             <option value="">— Seleccioná una empresa —</option>
             {% for e in empresas %}
-            <option value="{{ e.id }}">{{ e.nombre }} ({{ e.cuit }})</option>
+            <option value="{{ e.id }}" data-cuit="{{ e.cuit }}">{{ e.nombre }} ({{ e.cuit }})</option>
             {% endfor %}
           </select>
+          <div class="form-text text-info d-none" id="imp-cuit-info"></div>
         </div>
         <div class="col-12">
           <label class="form-label fw-semibold">Archivo Excel de AFIP <span class="text-danger">*</span></label>
@@ -500,9 +501,10 @@
           <select class="form-select" id="comp-empresa">
             <option value="">— Seleccioná una empresa —</option>
             {% for e in empresas %}
-            <option value="{{ e.id }}">{{ e.nombre }} ({{ e.cuit }})</option>
+            <option value="{{ e.id }}" data-cuit="{{ e.cuit }}">{{ e.nombre }} ({{ e.cuit }})</option>
             {% endfor %}
           </select>
+          <div class="form-text text-info d-none" id="comp-cuit-info"></div>
         </div>
         <div class="col-12">
           <label class="form-label fw-semibold">Archivo Excel de AFIP <span class="text-danger">*</span></label>
@@ -1109,13 +1111,34 @@ document.getElementById('btn-sync-clientes').addEventListener('click', async () 
 });
 
 // ===== IMPORTAR VENTAS AFIP ==================================================
+// Mostrar CUIT al seleccionar empresa y validar archivo
+document.getElementById('imp-empresa').addEventListener('change', function() {
+  const info = document.getElementById('imp-cuit-info');
+  const opt = this.options[this.selectedIndex];
+  if (this.value && opt.dataset.cuit) {
+    info.textContent = `Solo se importarán comprobantes del CUIT ${opt.dataset.cuit}`;
+    info.classList.remove('d-none');
+  } else {
+    info.classList.add('d-none');
+  }
+});
+
 document.getElementById('btn-importar').addEventListener('click', async () => {
-  const empresaId = document.getElementById('imp-empresa').value;
+  const sel = document.getElementById('imp-empresa');
+  const empresaId = sel.value;
   const archivo   = document.getElementById('imp-archivo').files[0];
   const resDiv    = document.getElementById('imp-resultado');
 
   if (!empresaId) { mostrarNotif('Seleccioná una empresa.', 'danger'); return; }
   if (!archivo)   { mostrarNotif('Seleccioná el archivo Excel de AFIP.', 'danger'); return; }
+
+  // Validar CUIT del nombre del archivo contra la empresa
+  const cuitEmpresa = sel.options[sel.selectedIndex].dataset.cuit || '';
+  const cuitMatch = archivo.name.match(/(\d{11})/);
+  if (cuitMatch && cuitMatch[1] !== cuitEmpresa.replace(/-/g, '')) {
+    mostrarNotif(`El CUIT del archivo (${cuitMatch[1]}) no coincide con la empresa seleccionada (${cuitEmpresa}). Verificá que estás importando el archivo correcto.`, 'danger');
+    return;
+  }
 
   const btn = document.getElementById('btn-importar');
   btn.disabled = true;
@@ -1156,13 +1179,33 @@ document.getElementById('btn-importar').addEventListener('click', async () => {
 });
 
 // ===== IMPORTAR COMPRAS AFIP =================================================
+document.getElementById('comp-empresa').addEventListener('change', function() {
+  const info = document.getElementById('comp-cuit-info');
+  const opt = this.options[this.selectedIndex];
+  if (this.value && opt.dataset.cuit) {
+    info.textContent = `Solo se importarán comprobantes del CUIT ${opt.dataset.cuit}`;
+    info.classList.remove('d-none');
+  } else {
+    info.classList.add('d-none');
+  }
+});
+
 document.getElementById('btn-importar-compras').addEventListener('click', async () => {
-  const empresaId = document.getElementById('comp-empresa').value;
+  const sel = document.getElementById('comp-empresa');
+  const empresaId = sel.value;
   const archivo   = document.getElementById('comp-archivo').files[0];
   const resDiv    = document.getElementById('comp-resultado');
 
   if (!empresaId) { mostrarNotif('Seleccioná una empresa.', 'danger'); return; }
   if (!archivo)   { mostrarNotif('Seleccioná el archivo Excel de AFIP.', 'danger'); return; }
+
+  // Validar CUIT del nombre del archivo contra la empresa
+  const cuitEmpresa = sel.options[sel.selectedIndex].dataset.cuit || '';
+  const cuitMatch = archivo.name.match(/(\d{11})/);
+  if (cuitMatch && cuitMatch[1] !== cuitEmpresa.replace(/-/g, '')) {
+    mostrarNotif(`El CUIT del archivo (${cuitMatch[1]}) no coincide con la empresa seleccionada (${cuitEmpresa}). Verificá que estás importando el archivo correcto.`, 'danger');
+    return;
+  }
 
   const btn = document.getElementById('btn-importar-compras');
   btn.disabled = true;
