@@ -302,7 +302,8 @@ function renderStats(totales) {
 
   const tipo = document.getElementById('f-tipo').value;
 
-  document.getElementById('stat-cantidad').textContent = totales.cantidad;
+  document.getElementById('stat-cantidad').textContent = totales.cantidad
+    + (totales.cantidad_nc ? ` (+ ${totales.cantidad_nc} NC)` : '');
   document.getElementById('stat-monto').textContent    = fmt(totales.monto);
 
   if (tipo === '') {
@@ -434,7 +435,7 @@ function renderTabla(registros, totales) {
 
   tfoot.innerHTML = `
     <tr>
-      <td colspan="6" class="text-end">SUBTOTAL (${totales.cantidad} comprobantes)</td>
+      <td colspan="6" class="text-end">SUBTOTAL (${totales.cantidad} facturas/ND${totales.cantidad_nc ? ` + ${totales.cantidad_nc} NC` : ''})</td>
       <td class="num">${fmt(sumNeto)}</td>
       <td class="num">${fmt(sumIva)}</td>
       <td class="num">${fmt(sumTotal)}</td>

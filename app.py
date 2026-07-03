@@ -2634,6 +2634,9 @@ def api_reportes():
     sum_fc = sum(r['imp_total'] for r in registros if r['tipo_grupo'] == 'factura')
     sum_nc = sum(r['imp_total'] for r in registros if r['tipo_grupo'] == 'nc')
     sum_nd = sum(r['imp_total'] for r in registros if r['tipo_grupo'] == 'nd')
+    cant_fc = sum(1 for r in registros if r['tipo_grupo'] == 'factura')
+    cant_nc = sum(1 for r in registros if r['tipo_grupo'] == 'nc')
+    cant_nd = sum(1 for r in registros if r['tipo_grupo'] == 'nd')
     monto_neto = round(sum_fc - sum_nc + sum_nd, 2)
 
     # Totales por mes (usando el neto: facturas - NC + ND)
@@ -2645,7 +2648,9 @@ def api_reportes():
     return jsonify({
         'registros': registros,
         'totales': {
-            'cantidad':    len(registros),
+            'cantidad':    cant_fc + cant_nd,
+            'cantidad_nc': cant_nc,
+            'cantidad_total': len(registros),
             'monto':       round(sum_fc + sum_nd, 2),
             'monto_nc':    round(sum_nc, 2),
             'monto_neto':  monto_neto,
@@ -2676,17 +2681,25 @@ def api_reportes_exportar():
 
     df = pd.DataFrame(registros, columns=[
         'mes', 'fecha', 'razon_social', 'punto_venta',
-        'nro_cbte', 'tipo_cbte', 'imp_neto', 'imp_iva', 'imp_total', 'cae'
+        'nro_cbte', 'tipo_nombre', 'tipo_grupo', 'imp_neto', 'imp_iva', 'imp_total', 'cae'
     ])
     df.columns = ['Mes', 'Fecha', 'Cliente', 'Pto. Venta',
-                  'Nro. Cbte', 'Tipo Cbte', 'Neto', 'IVA', 'Total', 'CAE']
+                  'Nro. Cbte', 'Tipo Cbte', '_grupo', 'Neto', 'IVA', 'Total', 'CAE']
+
+    # Calcular neto (Facturas + ND - NC)
+    mask_nc = df['_grupo'] == 'nc'
+    neto_total = round(df.loc[~mask_nc, 'Total'].sum() - df.loc[mask_nc, 'Total'].sum(), 2)
+    neto_neto  = round(df.loc[~mask_nc, 'Neto'].sum()  - df.loc[mask_nc, 'Neto'].sum(), 2)
+    neto_iva   = round(df.loc[~mask_nc, 'IVA'].sum()   - df.loc[mask_nc, 'IVA'].sum(), 2)
+    cant_fc_nd = int((~mask_nc).sum())
+    df.drop(columns=['_grupo'], inplace=True)
 
     # Fila de totales
     total_row = pd.DataFrame([{
-        'Mes': '', 'Fecha': '', 'Cliente': 'TOTAL',
-        'Pto. Venta': '', 'Nro. Cbte': len(registros), 'Tipo Cbte': '',
-        'Neto': df['Neto'].sum(), 'IVA': df['IVA'].sum(),
-        'Total': df['Total'].sum(), 'CAE': '',
+        'Mes': '', 'Fecha': '', 'Cliente': 'NETO FACTURADO',
+        'Pto. Venta': '', 'Nro. Cbte': cant_fc_nd, 'Tipo Cbte': '',
+        'Neto': neto_neto, 'IVA': neto_iva,
+        'Total': neto_total, 'CAE': '',
     }])
     df = pd.concat([df, total_row], ignore_index=True)
 
