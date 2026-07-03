@@ -140,11 +140,6 @@
       <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <h5 class="mb-0"><i class="bi bi-table text-primary"></i> Detalle de comprobantes</h5>
         <div class="d-flex gap-2">
-          {% if current_user.get('rol') == 'admin' %}
-          <button class="btn btn-outline-danger btn-sm" id="btn-eliminar-pv" title="Eliminar comprobantes por punto de venta">
-            <i class="bi bi-trash"></i> Eliminar por PV
-          </button>
-          {% endif %}
           <button class="btn btn-success btn-sm" id="btn-exportar">
             <i class="bi bi-file-earmark-excel"></i> Exportar a Excel
           </button>
@@ -572,49 +567,7 @@ document.getElementById('btn-confirmar-nc').addEventListener('click', async () =
   }
 });
 
-// --- Eliminar por Punto de Venta ------------------------------------------------
-const btnElimPv = document.getElementById('btn-eliminar-pv');
-if (btnElimPv) {
-  btnElimPv.addEventListener('click', async () => {
-    const empresaId = filtrosActuales.empresa_id || document.getElementById('f-empresa').value;
-    if (!empresaId) { alert('Seleccioná una empresa primero.'); return; }
 
-    const pvInput = prompt(
-      'Ingresá los puntos de venta a eliminar separados por coma.\n' +
-      'Ejemplo: 1,4\n\n' +
-      'ATENCIÓN: Esto eliminará TODOS los comprobantes de esos puntos de venta ' +
-      'de TODOS los meses para la empresa seleccionada. Esta acción no se puede deshacer.'
-    );
-    if (!pvInput) return;
-
-    const pvs = pvInput.split(',').map(s => s.trim()).filter(s => s && !isNaN(s));
-    if (!pvs.length) { alert('No se ingresaron puntos de venta válidos.'); return; }
-
-    if (!confirm(`¿Confirmar eliminación de TODOS los comprobantes de PV ${pvs.join(', ')}?`)) return;
-
-    btnElimPv.disabled = true;
-    btnElimPv.innerHTML = '<i class="bi bi-hourglass-split"></i> Eliminando...';
-    try {
-      const resp = await fetch('/api/eliminar-por-pv', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ empresa_id: empresaId, puntos_venta: pvs }),
-      });
-      const data = await resp.json();
-      if (data.error) {
-        alert('Error: ' + data.error);
-      } else {
-        alert(`Se eliminaron ${data.eliminados} comprobantes de PV ${data.puntos_venta.join(', ')}.\nMeses afectados: ${data.meses.join(', ') || 'ninguno'}`);
-        document.getElementById('btn-buscar').click();
-      }
-    } catch (e) {
-      alert('Error: ' + e);
-    } finally {
-      btnElimPv.disabled = false;
-      btnElimPv.innerHTML = '<i class="bi bi-trash"></i> Eliminar por PV';
-    }
-  });
-}
 </script>
 </body>
 </html>
