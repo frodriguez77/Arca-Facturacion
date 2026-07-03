@@ -2944,6 +2944,83 @@ def api_importar_afip():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/eliminar-por-pv', methods=['POST'])
+@admin_required
+def api_eliminar_por_pv():
+    """Elimina comprobantes de puntos de venta específicos de una empresa."""
+    data = request.get_json(force=True)
+    empresa_id = (data.get('empresa_id') or '').strip()
+    pvs_raw = data.get('puntos_venta', [])
+
+    empresa = EmpresaRepository.get_by_id(empresa_id)
+    if not empresa:
+        return jsonify({'error': 'Empresa no encontrada'}), 400
+
+    pvs = set()
+    for p in pvs_raw:
+        try:
+            pvs.add(int(p))
+        except (ValueError, TypeError):
+            pass
+    if not pvs:
+        return jsonify({'error': 'Indicá al menos un punto de venta'}), 400
+
+    base_dir = os.path.join(UPLOAD, empresa['cuit'])
+    if not os.path.exists(base_dir):
+        return jsonify({'error': 'Sin datos para esta empresa'}), 404
+
+    meses = sorted([
+        d for d in os.listdir(base_dir)
+        if os.path.isdir(os.path.join(base_dir, d)) and re.match(r'\d{4}-\d{2}', d)
+    ])
+
+    total_eliminados = 0
+    meses_tocados = []
+
+    for mes in meses:
+        path = os.path.join(base_dir, mes, 'facturas_resultado.xlsx')
+        if not os.path.exists(path):
+            continue
+        try:
+            wb = load_workbook(path)
+            ws = wb.active
+            hdrs = [str(ws.cell(1, c).value or '').strip().lower().replace(' ', '_')
+                    for c in range(1, ws.max_column + 1)]
+            try:
+                pv_col = hdrs.index('punto_venta') + 1
+            except ValueError:
+                continue
+
+            filas_eliminar = []
+            for r in range(2, ws.max_row + 1):
+                try:
+                    pv_val = int(float(ws.cell(r, pv_col).value or 0))
+                except (ValueError, TypeError):
+                    continue
+                if pv_val in pvs:
+                    filas_eliminar.append(r)
+
+            if not filas_eliminar:
+                continue
+
+            for r in reversed(filas_eliminar):
+                ws.delete_rows(r)
+
+            wb.save(path)
+            total_eliminados += len(filas_eliminar)
+            meses_tocados.append(mes)
+        except Exception as e:
+            print(f"Error limpiando {path}: {e}")
+
+    return jsonify({
+        'ok': True,
+        'eliminados': total_eliminados,
+        'puntos_venta': sorted(pvs),
+        'meses': meses_tocados,
+        'empresa': empresa['nombre'],
+    })
+
+
 @app.route('/api/check-update')
 @login_required
 def api_check_update():
