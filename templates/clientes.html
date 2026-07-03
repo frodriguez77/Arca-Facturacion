@@ -141,9 +141,13 @@
 
         <div class="row g-3 mb-4" style="max-width:560px">
           <div class="col-12">
-            <label class="form-label fw-semibold">Empresa <span class="text-danger">*</span></label>
-            <select class="form-select" id="cli-empresa" onchange="cargarClientes(); _actualizarDisplaysEmpresa(); _guardarEmpresaActiva();">
-              <option value="">— Seleccioná una empresa —</option>
+            <label class="form-label fw-semibold">Empresa</label>
+            <div class="form-control bg-light" id="cli-empresa-display">
+              <span class="text-muted">Seleccioná una empresa en Inicio</span>
+            </div>
+            <!-- select oculto para compatibilidad con JS existente -->
+            <select class="d-none" id="cli-empresa">
+              <option value="">—</option>
               {% for e in empresas %}
               <option value="{{ e.id }}" data-cuit="{{ e.cuit }}">{{ e.nombre }} ({{ e.cuit }})</option>
               {% endfor %}
@@ -1121,13 +1125,13 @@ function _guardarEmpresaActiva() {
 
 function _actualizarDisplaysEmpresa() {
   const emp = _getEmpresaSeleccionada();
-  ['imp-empresa-display', 'comp-empresa-display', 'ib-empresa-display'].forEach(id => {
+  ['cli-empresa-display', 'imp-empresa-display', 'comp-empresa-display', 'ib-empresa-display'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     if (emp) {
       el.innerHTML = `<strong>${emp.texto}</strong>`;
     } else {
-      el.innerHTML = '<span class="text-muted">Seleccioná una empresa en la pestaña Clientes</span>';
+      el.innerHTML = '<span class="text-muted">Seleccioná una empresa en Inicio</span>';
     }
   });
   const info = document.getElementById('imp-cuit-info');
