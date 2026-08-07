@@ -489,6 +489,8 @@ def api_usuario_add():
     if UsuarioRepository.username_exists(username):
         return jsonify({'error': 'Ya existe un usuario con ese nombre'}), 400
 
+    puede_backup = bool(data.get('puede_backup', False))
+
     uid = _unique_id(username, UsuarioRepository.id_exists)
     UsuarioRepository.add({
         'id':            uid,
@@ -497,6 +499,7 @@ def api_usuario_add():
         'rol':           rol,
         'nombre':        nombre or username,
         'empresas':      empresas if rol == 'usuario' else [],
+        'puede_backup':  puede_backup,
     })
     return jsonify({'ok': True, 'id': uid})
 
@@ -525,6 +528,7 @@ def api_usuario_edit(uid):
         'nombre':   nombre or username,
         'rol':      rol,
         'empresas': empresas if rol == 'usuario' else [],
+        'puede_backup': bool(data.get('puede_backup', False)),
     }
     if password:
         fields['password_hash'] = generate_password_hash(password)
@@ -3102,28 +3106,43 @@ def api_check_update():
 
 
 @app.route('/admin/backup')
-@admin_required
+@login_required
 def admin_backup():
-    """Genera un ZIP con uploads/, empresas.json y usuarios.json."""
+    """Genera un ZIP con todo el sistema: config, uploads, clientes, compras, certificados, logos."""
+    user = _get_current_user()
+    if user['rol'] != 'admin' and not user.get('puede_backup'):
+        return 'Acceso denegado', 403
+
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        # Datos de configuración
-        for fname in ('empresas.json', 'usuarios.json'):
+        # Archivos de configuración
+        for fname in ('empresas.json', 'usuarios.json', 'email_config.json'):
             fpath = os.path.join(BASE, fname)
             if os.path.exists(fpath):
                 zf.write(fpath, fname)
-        # Facturas (uploads/)
-        for root, dirs, files in os.walk(UPLOAD):
-            for file in files:
-                filepath = os.path.join(root, file)
-                arcname  = os.path.relpath(filepath, BASE)
-                zf.write(filepath, arcname)
+
+        # Carpetas de datos
+        for carpeta in (UPLOAD, CLIENTES_DIR, COMPRAS_DIR, CERTS,
+                        os.path.join(BASE, 'static', 'logos'),
+                        os.path.join(BASE, 'static', 'clientes')):
+            if not os.path.exists(carpeta):
+                continue
+            for root, dirs, files in os.walk(carpeta):
+                for file in files:
+                    filepath = os.path.join(root, file)
+                    arcname  = os.path.relpath(filepath, BASE)
+                    zf.write(filepath, arcname)
+
     buf.seek(0)
     fecha = datetime.today().strftime('%Y%m%d_%H%M')
     return send_file(buf, as_attachment=True,
                      download_name=f'arca_backup_{fecha}.zip',
                      mimetype='application/zip')
 
+
+_RESTORE_PREFIXES = ('uploads/', 'clientes/', 'compras/', 'certificados/',
+                     'static/logos/', 'static/clientes/')
+_RESTORE_FILES    = ('empresas.json', 'usuarios.json', 'email_config.json')
 
 @app.route('/admin/restore', methods=['POST'])
 @admin_required
@@ -3136,9 +3155,7 @@ def admin_restore():
     try:
         with zipfile.ZipFile(f, 'r') as zf:
             for name in zf.namelist():
-                # Seguridad: solo restaurar uploads/ y los JSON permitidos
-                if name.startswith('uploads/') or name in ('empresas.json', 'usuarios.json'):
-                    # Evitar path traversal
+                if name in _RESTORE_FILES or any(name.startswith(p) for p in _RESTORE_PREFIXES):
                     dest = os.path.normpath(os.path.join(BASE, name))
                     if not dest.startswith(BASE):
                         continue

@@ -614,6 +614,16 @@
           <div class="form-text">Solo aplica para usuarios con rol "Usuario".</div>
         </div>
 
+        <div class="mb-3">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="u-puede-backup">
+            <label class="form-check-label fw-semibold" for="u-puede-backup">
+              Puede hacer backup del sistema
+            </label>
+          </div>
+          <div class="form-text">Permite descargar una copia completa del sistema. Los administradores siempre pueden.</div>
+        </div>
+
           <input type="hidden" id="u-id">
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-success" id="btn-guardar-usuario">
@@ -1474,6 +1484,7 @@ function editarUsuario(u) {
   document.querySelectorAll('.empresa-check').forEach(cb => {
     cb.checked = (u.empresas || []).includes(cb.value);
   });
+  document.getElementById('u-puede-backup').checked = !!u.puede_backup;
 
   document.getElementById('form-usuario-titulo').innerHTML =
     '<i class="bi bi-pencil text-primary"></i> Editar usuario';
@@ -1491,6 +1502,7 @@ function limpiarFormUsuario() {
   });
   document.getElementById('u-rol').value = 'usuario';
   document.querySelectorAll('.empresa-check').forEach(cb => cb.checked = false);
+  document.getElementById('u-puede-backup').checked = false;
   toggleEmpresasUsuario();
   document.getElementById('form-usuario-titulo').innerHTML =
     '<i class="bi bi-person-plus text-success"></i> Agregar usuario';
@@ -1515,6 +1527,7 @@ document.getElementById('form-usuario').addEventListener('submit', async e => {
     password: document.getElementById('u-password').value,
     rol:      document.getElementById('u-rol').value,
     empresas,
+    puede_backup: document.getElementById('u-puede-backup').checked,
   };
 
   const editando = !!id;

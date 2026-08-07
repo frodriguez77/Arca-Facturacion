@@ -47,6 +47,10 @@
       <a href="/admin" class="btn btn-outline-light btn-sm">
         <i class="bi bi-gear"></i> Admin
       </a>
+      {% elif current_user.get('puede_backup') %}
+      <a href="/admin/backup" class="btn btn-outline-light btn-sm">
+        <i class="bi bi-download"></i> Backup
+      </a>
       {% endif %}
       <div class="vr opacity-50 d-none d-sm-block"></div>
       <span class="text-white opacity-75 small d-none d-sm-inline">
