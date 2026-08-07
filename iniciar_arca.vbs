@@ -29,7 +29,16 @@ If Not ServidorActivo() Then
     If arcaExe <> "" Then
         objShell.Run """" & arcaExe & """ """ & appDir & "\app.py""", 0, False
     Else
-        objShell.Run "py """ & appDir & "\app.py""", 0, False
+        Dim pythonCmd
+        pythonCmd = BuscarPython()
+        If pythonCmd <> "" Then
+            objShell.Run """" & pythonCmd & """ """ & appDir & "\app.py""", 0, False
+        Else
+            MsgBox "No se encontró Python instalado." & vbCrLf & _
+                   "Instalá Python desde python.org y asegurate de marcar 'Add to PATH'.", _
+                   vbCritical, "ARCA Facturación"
+            WScript.Quit
+        End If
     End If
 
     Dim i
@@ -128,6 +137,51 @@ Function ServidorActivo()
     http.SetTimeouts 300, 300, 1000, 1000
     http.Send
     ServidorActivo = (Err.Number = 0 And http.Status > 0)
+    On Error GoTo 0
+End Function
+
+Function BuscarPython()
+    On Error Resume Next
+    ' Intentar "py" (Python Launcher)
+    Dim oExec
+    Set oExec = objShell.Exec("cmd /c where py")
+    Dim pyPath : pyPath = Trim(Split(oExec.StdOut.ReadAll(), vbCrLf)(0))
+    If pyPath <> "" And objFSO.FileExists(pyPath) Then
+        BuscarPython = pyPath
+        Exit Function
+    End If
+
+    ' Intentar "python"
+    Set oExec = objShell.Exec("cmd /c where python")
+    Dim pythonPath : pythonPath = Trim(Split(oExec.StdOut.ReadAll(), vbCrLf)(0))
+    If pythonPath <> "" And objFSO.FileExists(pythonPath) Then
+        BuscarPython = pythonPath
+        Exit Function
+    End If
+
+    ' Intentar "pythonw" (ejecuta sin ventana de consola)
+    Set oExec = objShell.Exec("cmd /c where pythonw")
+    Dim pythonwPath : pythonwPath = Trim(Split(oExec.StdOut.ReadAll(), vbCrLf)(0))
+    If pythonwPath <> "" And objFSO.FileExists(pythonwPath) Then
+        BuscarPython = pythonwPath
+        Exit Function
+    End If
+
+    ' Buscar en rutas comunes
+    Dim common(3)
+    common(0) = objShell.ExpandEnvironmentStrings("%LocalAppData%") & "\Programs\Python\Python312\pythonw.exe"
+    common(1) = objShell.ExpandEnvironmentStrings("%LocalAppData%") & "\Programs\Python\Python311\pythonw.exe"
+    common(2) = "C:\Python312\pythonw.exe"
+    common(3) = "C:\Python311\pythonw.exe"
+    Dim k
+    For k = 0 To 3
+        If objFSO.FileExists(common(k)) Then
+            BuscarPython = common(k)
+            Exit Function
+        End If
+    Next
+
+    BuscarPython = ""
     On Error GoTo 0
 End Function
 
