@@ -1,5 +1,6 @@
 import base64
 import datetime
+import email.utils
 import json
 import os
 import subprocess
@@ -43,9 +44,33 @@ def _find_tag(elem, tag):
     return None
 
 
-def _generate_tra(service):
+def _get_accurate_time():
+    """Obtener hora Argentina precisa, corrigiendo desfasaje del reloj local."""
     tz_arg = datetime.timezone(datetime.timedelta(hours=-3))
-    now    = datetime.datetime.now(tz_arg)
+    local_now = datetime.datetime.now(tz_arg)
+
+    for url in ['https://www.google.com', 'https://www.microsoft.com',
+                'https://www.cloudflare.com']:
+        try:
+            resp = requests.head(url, timeout=5, verify=False)
+            date_str = resp.headers.get('Date')
+            if date_str:
+                server_utc = email.utils.parsedate_to_datetime(date_str)
+                server_arg = server_utc.astimezone(tz_arg)
+                diff = (server_arg - local_now).total_seconds()
+                if abs(diff) > 30:
+                    print(f"WSAA: Reloj local desfasado {diff:+.0f}s — "
+                          f"usando hora del servidor ({url})")
+                return server_arg
+        except Exception:
+            continue
+
+    print("WSAA: No se pudo verificar hora online, usando reloj local")
+    return local_now
+
+
+def _generate_tra(service):
+    now    = _get_accurate_time()
     expiry = now + datetime.timedelta(hours=12)
     fmt    = "%Y-%m-%dT%H:%M:%S-03:00"
     tra = (
@@ -126,6 +151,15 @@ def get_ticket(service, cert_path, key_path, wsaa_url, cuit):
     if not resp.ok:
         if 'alreadyAuthenticated' in resp.text:
             raise Exception("AFIP: ya existe un ticket válido. Esperá unos minutos y reintentá.")
+        if 'generationTime' in resp.text:
+            _cache.pop(cache_key, None)
+            _save_cache()
+            raise Exception(
+                "AFIP rechazó la hora del sistema. "
+                "Verificá que la fecha y hora de tu PC sean correctas: "
+                "Configuración → Hora e idioma → Activar 'Ajustar hora automáticamente'. "
+                f"(Detalle: {resp.text[:400]})"
+            )
         raise Exception(f"WSAA HTTP {resp.status_code}: {resp.text[:800]}")
 
     root    = ET.fromstring(resp.content)
